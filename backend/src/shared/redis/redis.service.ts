@@ -63,24 +63,49 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.redisClient.exists(key);
   }
 
-  // Distributed Lock Mechanism (For round-robin safety)
+  /**
+   * Acquires a distributed lock.
+   * @param lockKey The key representing the lock
+   * @param ttlSeconds Lock duration in seconds
+   * @returns The unique token string if lock is successfully acquired, or null otherwise
+   */
   async acquireLock(
     lockKey: string,
     ttlSeconds: number = 10,
-  ): Promise<boolean> {
-    const uniqueValue = Math.random().toString(36).substring(2);
+  ): Promise<string | null> {
+    const uniqueToken =
+      Math.random().toString(36).substring(2) + Date.now().toString(36);
     const result = await this.redisClient.set(
       lockKey,
-      uniqueValue,
+      uniqueToken,
       'EX',
       ttlSeconds,
       'NX',
     );
-    return result === 'OK';
+    return result === 'OK' ? uniqueToken : null;
   }
 
-  async releaseLock(lockKey: string): Promise<boolean> {
-    const result = await this.redisClient.del(lockKey);
-    return result > 0;
+  /**
+   * Releases a distributed lock safely using a Lua script to ensure
+   * that a process only deletes the lock if it holds the matching token.
+   * @param lockKey The key representing the lock
+   * @param token The unique token returned during lock acquisition
+   * @returns true if the lock was successfully released, false otherwise
+   */
+  async releaseLock(lockKey: string, token: string): Promise<boolean> {
+    const releaseScript = `
+      if redis.call("get", KEYS[1]) == ARGV[1] then
+        return redis.call("del", KEYS[1])
+      else
+        return 0
+      end
+    `;
+    const result = await this.redisClient.eval(
+      releaseScript,
+      1,
+      lockKey,
+      token,
+    );
+    return result === 1;
   }
 }

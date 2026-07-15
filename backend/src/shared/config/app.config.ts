@@ -1,5 +1,11 @@
 import { plainToInstance } from 'class-transformer';
-import { IsEnum, IsNumber, IsString, validateSync } from 'class-validator';
+import {
+  IsEnum,
+  IsNumber,
+  IsString,
+  IsOptional,
+  validateSync,
+} from 'class-validator';
 
 export enum Environment {
   Development = 'development',
@@ -35,6 +41,10 @@ class EnvironmentVariables {
 
   @IsString()
   SWAGGER_PATH: string;
+
+  @IsString()
+  @IsOptional()
+  ALLOWED_ORIGINS?: string;
 }
 
 export function validateConfig(config: Record<string, any>) {
