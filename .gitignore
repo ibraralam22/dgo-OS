@@ -1,0 +1,45 @@
+# Dependency directories
+node_modules/
+jspm_packages/
+web_modules/
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# Environment configurations
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.env.sync
+
+# IDE and OS files
+.idea/
+.vscode/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.DS_Store
+Thumbs.db
+
+# Logs and databases
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.db
+*.sqlite
+
+# Testing coverage
+coverage/
+.nyc_output/
+
+# Prisma generated schema files
+/backend/node_modules/@prisma/client/
