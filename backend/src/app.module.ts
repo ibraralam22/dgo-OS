@@ -4,9 +4,10 @@ import { AppService } from './app.service';
 import { SharedModule } from './shared/shared.module';
 import { RequestContextModule } from './common/context/request-context.module';
 import { TenantMiddleware } from './common/context/tenant.middleware';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
-  imports: [SharedModule, RequestContextModule],
+  imports: [SharedModule, RequestContextModule, AuthModule],
   controllers: [AppController],
   providers: [AppService],
 })

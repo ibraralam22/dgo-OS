@@ -1,5 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { Pool } from 'pg';
 import { RequestContextService } from '../../common/context/request-context.service';
 
 @Injectable()
@@ -9,9 +11,14 @@ export class PrismaService
 {
   // We expose a public "client" property containing the extended Prisma client that applies RLS
   public readonly client: any;
+  private readonly pool: Pool;
 
   constructor(private readonly requestContextService: RequestContextService) {
+    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+    const adapter = new PrismaPg(pool);
+
     super({
+      adapter,
       log: [
         { emit: 'event', level: 'query' },
         { emit: 'stdout', level: 'info' },
@@ -19,6 +26,8 @@ export class PrismaService
         { emit: 'stdout', level: 'error' },
       ],
     });
+
+    this.pool = pool;
 
     // Create the extended client mapping automatic tenant context queries
     this.client = this.$extends({
@@ -54,5 +63,6 @@ export class PrismaService
 
   async onModuleDestroy() {
     await this.$disconnect();
+    await this.pool.end();
   }
 }
