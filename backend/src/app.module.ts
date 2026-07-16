@@ -5,9 +5,10 @@ import { SharedModule } from './shared/shared.module';
 import { RequestContextModule } from './common/context/request-context.module';
 import { TenantMiddleware } from './common/context/tenant.middleware';
 import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
-  imports: [SharedModule, RequestContextModule, AuthModule],
+  imports: [SharedModule, RequestContextModule, AuthModule, UsersModule],
   controllers: [AppController],
   providers: [AppService],
 })
@@ -16,3 +17,4 @@ export class AppModule implements NestModule {
     consumer.apply(TenantMiddleware).forRoutes('*'); // Apply tenant-scoping middleware globally to all endpoints
   }
 }
+

@@ -24,6 +24,8 @@ async function main() {
     { code: 'opportunities:read', description: 'Read sales opportunities' },
     { code: 'billing:read', description: 'View billing invoices and payments' },
     { code: 'tickets:read', description: 'View service tickets' },
+    { code: 'iam:read', description: 'View users and role assignments in tenant' },
+    { code: 'iam:write', description: 'Create, update, and assign roles to users in tenant' },
   ];
 
   console.log('Locking in permissions...');
@@ -47,7 +49,7 @@ async function main() {
     {
       name: 'TenantAdmin',
       description: 'Organization tenant administrator',
-      permissions: ['leads:read', 'leads:write', 'clients:read', 'clients:write', 'opportunities:read', 'billing:read', 'tickets:read'],
+      permissions: ['leads:read', 'leads:write', 'clients:read', 'clients:write', 'opportunities:read', 'billing:read', 'tickets:read', 'iam:read', 'iam:write'],
     },
     {
       name: 'SalesRepresentative',

@@ -1,6 +1,7 @@
 import {
   LayoutDashboard,
   Users,
+  UserCog,
   Briefcase,
   HelpCircle,
   Settings,
@@ -58,6 +59,12 @@ export const navigationItems: NavItem[] = [
     path: '/dashboard/tickets',
     icon: HelpCircle,
     requiredPermissions: ['tickets:read'],
+  },
+  {
+    label: 'User Directory',
+    path: '/dashboard/admin/users',
+    icon: UserCog,
+    requiredPermissions: ['iam:read'],
   },
   {
     label: 'Audit Security',
