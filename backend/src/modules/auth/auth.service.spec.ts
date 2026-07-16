@@ -6,11 +6,6 @@ import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 jest.mock('bcrypt');
-jest.mock('otplib', () => ({
-  generateSecret: jest.fn(() => 'mocked-secret'),
-  generateURI: jest.fn(() => 'mocked-uri'),
-  verify: jest.fn(() => Promise.resolve(true)),
-}));
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -29,7 +24,11 @@ describe('AuthService', () => {
       findUnique: jest.fn(),
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       deleteMany: jest.fn(),
+    },
+    auditLog: {
+      create: jest.fn(),
     },
   };
 
@@ -41,8 +40,6 @@ describe('AuthService', () => {
   const mockConfig = {
     get: jest.fn((key: string) => {
       if (key === 'JWT_SECRET') return 'test-jwt-secret';
-      if (key === 'ENCRYPTION_KEY' || key === 'MFA_ENCRYPTION_KEY')
-        return '32-character-encryption-key-test-key-32';
       return null;
     }),
   };
@@ -110,32 +107,19 @@ describe('AuthService', () => {
         service.validateCredentials('test@dgo.com', 'pwd'),
       ).rejects.toThrow(UnauthorizedException);
     });
+
+    it('should throw UnauthorizedException if user does not exist', async () => {
+      (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.validateCredentials('nonexistent@dgo.com', 'pwd'),
+      ).rejects.toThrow(UnauthorizedException);
+    });
   });
 
   describe('login', () => {
-    it('should return mfaRequired true if MFA is enabled', async () => {
-      const user = { id: 'user-1', mfaEnabled: true };
-      mockJwt.sign.mockReturnValue('mfa-ticket-token');
-
-      const result = await service.login(user);
-      expect(result).toEqual({
-        mfaRequired: true,
-        mfaTicket: 'mfa-ticket-token',
-      });
-    });
-
-    it('should create session if MFA is disabled', async () => {
-      const user = { id: 'user-1', mfaEnabled: false };
-      const mockSession = {
-        id: 'session-1',
-        tokenFamilyId: 'family-1',
-        user: {
-          id: 'user-1',
-          email: 'test@dgo.com',
-          role: 'Admin',
-          userOrganizations: [],
-        },
-      };
+    it('should create session directly without MFA', async () => {
+      const user = { id: 'user-1' };
 
       (prisma.userOrganization.findMany as jest.Mock).mockResolvedValue([
         {
@@ -144,6 +128,7 @@ describe('AuthService', () => {
             name: 'Org 1',
             subdomain: 'org1',
           },
+          organizationId: 'org-1',
           role: {
             name: 'Admin',
             rolePermissions: [
@@ -159,52 +144,29 @@ describe('AuthService', () => {
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@dgo.com',
-        role: 'Admin',
+        firstName: 'Test',
+        lastName: 'User',
       });
-      (prisma.userSession.create as jest.Mock).mockResolvedValue(mockSession);
+      (prisma.userSession.create as jest.Mock).mockResolvedValue({});
       mockJwt.sign.mockReturnValue('access-token');
 
       const result = await service.login(user);
-      expect(result.mfaRequired).toBe(false);
       expect(result).toHaveProperty('accessToken');
       expect(result).toHaveProperty('refreshToken');
+      expect(result).toHaveProperty('user');
+      expect(result).toHaveProperty('organizations');
     });
   });
 
-  describe('verifyMfa', () => {
-    it('should throw UnauthorizedException if ticket is invalid', async () => {
-      mockJwt.verify.mockImplementation(() => {
-        throw new Error('invalid signature');
+  describe('revokeSession', () => {
+    it('should revoke session by refresh token hash', async () => {
+      (prisma.userSession.updateMany as jest.Mock).mockResolvedValue({ count: 1 });
+
+      await service.revokeSession('some-refresh-token');
+      expect(prisma.userSession.updateMany).toHaveBeenCalledWith({
+        where: expect.objectContaining({ refreshTokenHash: expect.any(String) }),
+        data: { isRevoked: true },
       });
-
-      await expect(service.verifyMfa('bad-ticket', '123456')).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-
-    it('should throw UnauthorizedException if purpose is not mfa_verification', async () => {
-      mockJwt.verify.mockReturnValue({
-        sub: 'user-1',
-        purpose: 'wrong_purpose',
-      });
-
-      await expect(service.verifyMfa('ticket', '123456')).rejects.toThrow(
-        UnauthorizedException,
-      );
-    });
-  });
-
-  describe('generateMfaSecret', () => {
-    it('should generate an encrypted secret and save to DB', async () => {
-      const mockUser = { id: 'user-1', email: 'test@dgo.com' };
-      (prisma.user.findUnique as jest.Mock).mockResolvedValue(mockUser);
-      (prisma.user.update as jest.Mock).mockResolvedValue({});
-
-      const result = await service.generateMfaSecret('user-1');
-      expect(result).toHaveProperty('secret');
-      expect(result).toHaveProperty('otpAuthUrl');
-      // eslint-disable-next-line @typescript-eslint/unbound-method
-      expect(prisma.user.update).toHaveBeenCalled();
     });
   });
 });

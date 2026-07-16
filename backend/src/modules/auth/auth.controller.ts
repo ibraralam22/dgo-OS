@@ -4,7 +4,6 @@ import {
   Body,
   Req,
   Res,
-  UseGuards,
   HttpCode,
   HttpStatus,
   BadRequestException,
@@ -12,10 +11,8 @@ import {
 import * as express from 'express';
 import { AuthService, AuthSessionResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
-import { MfaLoginDto } from './dto/mfa-login.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { ActiveUser } from '../../common/decorators/user.decorator';
-import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import {
   ApiTags,
   ApiOperation,
@@ -54,7 +51,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Login user with email and password credentials' })
   @ApiResponse({
     status: 200,
-    description: 'Login successful or MFA required state triggered',
+    description: 'Login successful',
   })
   async login(
     @Body() loginDto: LoginDto,
@@ -69,41 +66,6 @@ export class AuthController {
     const ua = req.headers['user-agent'];
 
     const result = await this.authService.login(user, ip, ua);
-
-    if (!result.mfaRequired) {
-      this.setRefreshCookie(res, result.refreshToken);
-      const responsePayload = { ...result } as Partial<AuthSessionResponse>;
-      delete responsePayload.refreshToken;
-      return responsePayload;
-    }
-
-    return result;
-  }
-
-  @Public()
-  @Post('login/mfa')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Complete MFA verification using login ticket and TOTP code',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Authentication token set successfully',
-  })
-  async loginMfa(
-    @Body() mfaLoginDto: MfaLoginDto,
-    @Req() req: express.Request,
-    @Res({ passthrough: true }) res: express.Response,
-  ) {
-    const ip = req.ip;
-    const ua = req.headers['user-agent'];
-
-    const result = await this.authService.verifyMfa(
-      mfaLoginDto.mfaTicket,
-      mfaLoginDto.totpCode,
-      ip,
-      ua,
-    );
 
     this.setRefreshCookie(res, result.refreshToken);
     const responsePayload = { ...result } as Partial<AuthSessionResponse>;
@@ -139,12 +101,14 @@ export class AuthController {
   }
 
   @Post('logout')
+  @ApiBearerAuth()
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke active refresh tokens and sign out user' })
   @ApiResponse({ status: 200, description: 'Logout completed' })
   async logout(
     @Req() req: express.Request,
     @Res({ passthrough: true }) res: express.Response,
+    @ActiveUser('id') _userId: string,
   ) {
     const token = req.cookies?.['refreshToken'] as string | undefined;
     if (token) {
@@ -152,42 +116,5 @@ export class AuthController {
     }
     this.clearRefreshCookie(res);
     return { success: true, message: 'Logged out successfully' };
-  }
-
-  @Post('mfa/enable')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Generate TOTP MFA seed keys for logged-in user profile',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'TOTP secret registration configuration created',
-  })
-  async enableMfa(@ActiveUser('id') userId: string) {
-    return this.authService.generateMfaSecret(userId);
-  }
-
-  @Post('mfa/confirm')
-  @UseGuards(JwtAuthGuard)
-  @ApiBearerAuth()
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Verify dynamic TOTP code and enable permanent MFA protection',
-  })
-  @ApiResponse({ status: 200, description: 'MFA setup confirmed' })
-  async confirmMfa(
-    @ActiveUser('id') userId: string,
-    @Body('totpCode') totpCode: string,
-  ) {
-    if (!totpCode) {
-      throw new BadRequestException('totpCode parameter is required');
-    }
-    await this.authService.confirmMfa(userId, totpCode);
-    return {
-      success: true,
-      message: 'Multi-Factor Authentication enabled successfully',
-    };
   }
 }

@@ -31,8 +31,6 @@ model User {
   firstName         String             @db.VarChar(100)
   lastName          String             @db.VarChar(100)
   phone             String?            @db.VarChar(50)
-  mfaSecret         String?            @db.VarChar(255) // Encrypted at application layer
-  mfaEnabled        Boolean            @default(false)
   status            String             @default("pending") @db.VarChar(50) // pending, active, suspended
   timezone          String             @default("UTC") @db.VarChar(100)
   createdAt         DateTime           @default(now()) @db.Timestamptz(6)

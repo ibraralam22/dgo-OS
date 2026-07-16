@@ -7,12 +7,10 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
-import { generateSecret, verify, generateURI } from 'otplib';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface AuthSessionResponse {
-  mfaRequired: false;
   accessToken: string;
   refreshToken: string;
   user: {
@@ -30,60 +28,13 @@ export interface AuthSessionResponse {
   }[];
 }
 
-export interface MfaTicketResponse {
-  mfaRequired: true;
-  mfaTicket: string;
-}
-
 @Injectable()
 export class AuthService {
-  private readonly encryptionKey: Buffer;
-  private readonly encryptionAlgorithm = 'aes-256-cbc';
-
   constructor(
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
-  ) {
-    const rawKey = this.configService.get<string>('ENCRYPTION_KEY');
-    if (!rawKey) {
-      throw new Error('ENCRYPTION_KEY configuration is missing');
-    }
-    // Derive a proper 32-byte key
-    this.encryptionKey = crypto.createHash('sha256').update(rawKey).digest();
-  }
-
-  /**
-   * Encrypt user secrets (like MFA seed keys)
-   */
-  private encrypt(text: string): string {
-    const iv = crypto.randomBytes(16);
-    const cipher = crypto.createCipheriv(
-      this.encryptionAlgorithm,
-      this.encryptionKey,
-      iv,
-    );
-    let encrypted = cipher.update(text, 'utf8', 'hex');
-    encrypted += cipher.final('hex');
-    return `${iv.toString('hex')}:${encrypted}`;
-  }
-
-  /**
-   * Decrypt user secrets
-   */
-  private decrypt(text: string): string {
-    const parts = text.split(':');
-    const iv = Buffer.from(parts.shift() || '', 'hex');
-    const encryptedText = Buffer.from(parts.join(':'), 'hex');
-    const decipher = crypto.createDecipheriv(
-      this.encryptionAlgorithm,
-      this.encryptionKey,
-      iv,
-    );
-    let decrypted = decipher.update(encryptedText, undefined, 'utf8');
-    decrypted += decipher.final('utf8');
-    return decrypted;
-  }
+  ) {}
 
   /**
    * Helper to hash refresh tokens before saving to database
@@ -123,67 +74,13 @@ export class AuthService {
   }
 
   /**
-   * Initiates session login check, handles MFA ticket checks
+   * Initiates session login and creates a new authenticated session
    */
   async login(
-    user: { id: string; mfaEnabled: boolean },
-    ipAddress?: string,
-    userAgent?: string,
-  ): Promise<AuthSessionResponse | MfaTicketResponse> {
-    if (user.mfaEnabled) {
-      const mfaTicket = this.jwtService.sign(
-        { sub: user.id, purpose: 'mfa_verification' },
-        {
-          expiresIn: '5m',
-          secret: this.configService.get<string>('JWT_SECRET'),
-        },
-      );
-      return { mfaRequired: true, mfaTicket };
-    }
-
-    return this.createSession(user.id, uuidv4(), ipAddress, userAgent);
-  }
-
-  /**
-   * Verifies secondary factor TOTP token using short-lived ticket
-   */
-  async verifyMfa(
-    mfaTicket: string,
-    totpCode: string,
+    user: { id: string },
     ipAddress?: string,
     userAgent?: string,
   ): Promise<AuthSessionResponse> {
-    let payload: { sub: string; purpose: string };
-    try {
-      payload = this.jwtService.verify(mfaTicket, {
-        secret: this.configService.get<string>('JWT_SECRET'),
-      });
-    } catch {
-      throw new UnauthorizedException('Expired or invalid MFA login ticket');
-    }
-
-    if (payload.purpose !== 'mfa_verification') {
-      throw new UnauthorizedException('Invalid MFA ticket credentials');
-    }
-
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-    });
-
-    if (!user || user.status === 'suspended' || !user.mfaSecret) {
-      throw new UnauthorizedException('Access denied');
-    }
-
-    const mfaSecret = this.decrypt(user.mfaSecret);
-    const isValid = await verify({
-      token: totpCode,
-      secret: mfaSecret,
-    });
-
-    if (!isValid) {
-      throw new UnauthorizedException('Invalid TOTP verification code');
-    }
-
     return this.createSession(user.id, uuidv4(), ipAddress, userAgent);
   }
 
@@ -266,7 +163,6 @@ export class AuthService {
     }));
 
     return {
-      mfaRequired: false,
       accessToken,
       refreshToken: rawRefreshToken,
       user: {
@@ -353,59 +249,6 @@ export class AuthService {
     await this.prisma.userSession.updateMany({
       where: { refreshTokenHash: hash },
       data: { isRevoked: true },
-    });
-  }
-
-  /**
-   * Generates a new MFA Secret seed configuration for active user setup
-   */
-  async generateMfaSecret(userId: string) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-      throw new UnauthorizedException('User profile missing');
-    }
-
-    const secret = generateSecret();
-    const otpAuthUrl = generateURI({
-      issuer: 'DGO Enterprise CRM',
-      label: user.email,
-      secret,
-    });
-    const encryptedSecret = this.encrypt(secret);
-
-    // Save the encrypted secret dynamically in DB pending confirmation
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaSecret: encryptedSecret },
-    });
-
-    return { secret, otpAuthUrl };
-  }
-
-  /**
-   * Verifies and locks in MFA registration requirements
-   */
-  async confirmMfa(userId: string, totpCode: string): Promise<void> {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
-    if (!user || !user.mfaSecret) {
-      throw new BadRequestException(
-        'MFA configuration has not been initialized',
-      );
-    }
-
-    const decryptedSecret = this.decrypt(user.mfaSecret);
-    const isValid = await verify({
-      token: totpCode,
-      secret: decryptedSecret,
-    });
-
-    if (!isValid) {
-      throw new BadRequestException('Invalid TOTP registration code');
-    }
-
-    await this.prisma.user.update({
-      where: { id: userId },
-      data: { mfaEnabled: true },
     });
   }
 }

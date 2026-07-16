@@ -2,37 +2,17 @@ import { apiClient } from './api-client';
 import { UserProfile, OrganizationInfo } from '../store/auth-store';
 
 export interface AuthSessionResponse {
-  mfaRequired: false;
   accessToken: string;
   user: UserProfile;
   organizations: OrganizationInfo[];
 }
 
-export interface MfaTicketResponse {
-  mfaRequired: true;
-  mfaTicket: string;
-}
-
-export type LoginResponse = AuthSessionResponse | MfaTicketResponse;
-
 export const authApi = {
   /**
-   * Submit credentials for authentication. Can return either user session details
-   * or a short-lived ticket to request subsequent MFA validation.
+   * Submit credentials for authentication and receive a session.
    */
-  async login(credentials: Record<string, string>): Promise<LoginResponse> {
-    const { data } = await apiClient.post<LoginResponse>('/auth/login', credentials);
-    return data;
-  },
-
-  /**
-   * Submit secondary factor TOTP token alongside authentication ticket.
-   */
-  async verifyMfa(mfaTicket: string, totpCode: string): Promise<AuthSessionResponse> {
-    const { data } = await apiClient.post<AuthSessionResponse>('/auth/login/mfa', {
-      mfaTicket,
-      totpCode,
-    });
+  async login(credentials: Record<string, string>): Promise<AuthSessionResponse> {
+    const { data } = await apiClient.post<AuthSessionResponse>('/auth/login', credentials);
     return data;
   },
 
