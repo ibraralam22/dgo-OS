@@ -45,9 +45,10 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
   ) {
-    const rawKey =
-      this.configService.get<string>('ENCRYPTION_KEY') ||
-      'default-fallback-encryption-key-32-chars-long!';
+    const rawKey = this.configService.get<string>('ENCRYPTION_KEY');
+    if (!rawKey) {
+      throw new Error('ENCRYPTION_KEY configuration is missing');
+    }
     // Derive a proper 32-byte key
     this.encryptionKey = crypto.createHash('sha256').update(rawKey).digest();
   }

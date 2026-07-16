@@ -1,8 +1,13 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/auth-store';
 
+const baseURL = process.env.NEXT_PUBLIC_API_URL;
+if (!baseURL) {
+  throw new Error('NEXT_PUBLIC_API_URL environment variable is missing');
+}
+
 export const apiClient = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1',
+  baseURL,
   withCredentials: true,
   headers: {
     'Content-Type': 'application/json',

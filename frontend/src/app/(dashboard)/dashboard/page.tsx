@@ -2,10 +2,16 @@
 
 import React from 'react';
 import { useAuthStore } from '../../../store/auth-store';
-import { ShieldCheck, Sparkles, LayoutDashboard, Users, CreditCard, Layers } from 'lucide-react';
+import { ShieldCheck, Sparkles, LayoutDashboard, Users, CreditCard, Layers, Loader2 } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
+import { systemApi } from '../../../services/system-api';
 
 export default function DashboardPage() {
   const { user } = useAuthStore();
+  const { data: systemStatus, isLoading } = useQuery({
+    queryKey: ['system-status'],
+    queryFn: () => systemApi.getStatus(),
+  });
 
   return (
     <div className="flex flex-col gap-8">
@@ -33,7 +39,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Workspace Tenant</span>
-            <span className="text-sm font-bold text-foreground mt-0.5">Active</span>
+            <span className="text-sm font-bold text-foreground mt-0.5 flex items-center min-h-[20px]">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : (systemStatus?.tenantStatus || 'Unavailable')}
+            </span>
           </div>
         </div>
 
@@ -43,7 +51,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Role Assigned</span>
-            <span className="text-sm font-bold text-foreground mt-0.5">{user ? user.role : 'Guest'}</span>
+            <span className="text-sm font-bold text-foreground mt-0.5 flex items-center min-h-[20px]">{user ? user.role : 'Guest'}</span>
           </div>
         </div>
 
@@ -53,7 +61,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Stripe Webhooks</span>
-            <span className="text-sm font-bold text-foreground mt-0.5">Idempotency Guard Active</span>
+            <span className="text-sm font-bold text-foreground mt-0.5 flex items-center min-h-[20px]">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : (systemStatus?.stripeWebhooks || 'Unavailable')}
+            </span>
           </div>
         </div>
 
@@ -63,7 +73,9 @@ export default function DashboardPage() {
           </div>
           <div className="flex flex-col">
             <span className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider">Database Mode</span>
-            <span className="text-sm font-bold text-foreground mt-0.5">PostgreSQL + RLS</span>
+            <span className="text-sm font-bold text-foreground mt-0.5 flex items-center min-h-[20px]">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : (systemStatus?.databaseMode || 'Unavailable')}
+            </span>
           </div>
         </div>
       </div>
@@ -77,17 +89,21 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-3.5 text-xs text-muted-foreground">
           <div className="flex items-center justify-between border-b border-border/20 pb-2">
             <span className="font-semibold">User Authentication</span>
-            <span className="text-foreground">JWT Stateless Access + Cookie Refresh Family</span>
+            <span className="text-foreground flex items-center min-h-[16px]">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : (systemStatus?.authMethod || 'Unavailable')}
+            </span>
           </div>
           <div className="flex items-center justify-between border-b border-border/20 pb-2">
             <span className="font-semibold">Granular Permissions Assigned</span>
-            <span className="text-foreground font-mono">
+            <span className="text-foreground font-mono flex items-center min-h-[16px]">
               {user ? user.permissions.join(', ') : 'None'}
             </span>
           </div>
           <div className="flex items-center justify-between">
             <span className="font-semibold">Security Level</span>
-            <span className="text-foreground">Role-Based Guard (RBAC Interceptor) Enabled</span>
+            <span className="text-foreground flex items-center min-h-[16px]">
+              {isLoading ? <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" /> : (systemStatus?.securityLevel || 'Unavailable')}
+            </span>
           </div>
         </div>
       </div>

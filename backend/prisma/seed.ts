@@ -3,7 +3,11 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
 
-const connectionString = process.env.DATABASE_URL || 'postgresql://postgres.obavhcqifsaoqvhahnjm:qncPvxHHfsAtYHH6@aws-0-ap-northeast-1.pooler.supabase.com:6543/postgres?pgbouncer=true';
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  console.error('❌ DATABASE_URL environment variable is missing');
+  process.exit(1);
+}
 const pool = new Pool({ connectionString });
 const adapter = new PrismaPg(pool);
 const prisma = new PrismaClient({ adapter });

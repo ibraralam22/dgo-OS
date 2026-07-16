@@ -19,4 +19,12 @@ describe('AppController', () => {
       expect(appController.getHello()).toBe('Hello World!');
     });
   });
+
+  describe('system/status', () => {
+    it('should return system metrics and status details', () => {
+      const status = appController.getSystemStatus();
+      expect(status).toHaveProperty('tenantStatus');
+      expect(status).toHaveProperty('databaseMode');
+    });
+  });
 });

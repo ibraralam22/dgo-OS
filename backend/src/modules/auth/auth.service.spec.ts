@@ -41,7 +41,7 @@ describe('AuthService', () => {
   const mockConfig = {
     get: jest.fn((key: string) => {
       if (key === 'JWT_SECRET') return 'test-jwt-secret';
-      if (key === 'MFA_ENCRYPTION_KEY')
+      if (key === 'ENCRYPTION_KEY' || key === 'MFA_ENCRYPTION_KEY')
         return '32-character-encryption-key-test-key-32';
       return null;
     }),
