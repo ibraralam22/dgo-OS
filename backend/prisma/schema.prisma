@@ -1,0 +1,152 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// Organizations represents the B2B Tenant entity
+model Organization {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String             @db.VarChar(255)
+  subdomain         String             @db.VarChar(100)
+  status            String             @default("active") @db.VarChar(50) // active, suspended, trial
+  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
+  deletedAt         DateTime?          @db.Timestamptz(6)
+  
+  // Relations
+  userOrganizations UserOrganization[]
+  auditLogs         AuditLog[]
+
+  @@map("organizations")
+}
+
+/// Users represents all internal employees and external client administrators
+model User {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email             String             @db.VarChar(255)
+  passwordHash      String?            @db.VarChar(255) // Nullable to natively support passwordless/Passkey login
+  firstName         String             @db.VarChar(100)
+  lastName          String             @db.VarChar(100)
+  phone             String?            @db.VarChar(50)
+  status            String             @default("pending") @db.VarChar(50) // pending, active, suspended
+  timezone          String             @default("UTC") @db.VarChar(100)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
+  deletedAt         DateTime?          @db.Timestamptz(6)
+
+  // Relations
+  userOrganizations UserOrganization[]
+  userSessions      UserSession[]
+  auditLogs         AuditLog[]
+
+  @@map("users")
+}
+
+/// Roles represents role assignments for users within organizations
+model Role {
+  id                String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String             @unique @db.VarChar(100)
+  description       String?            @db.Text
+  createdAt         DateTime           @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
+  deletedAt         DateTime?          @db.Timestamptz(6)
+
+  // Relations
+  rolePermissions   RolePermission[]
+  userOrganizations UserOrganization[]
+
+  @@map("roles")
+}
+
+/// Permissions represents granular functional permissions linked to roles
+model Permission {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code            String           @unique @db.VarChar(100) // e.g. 'leads:write', 'billing:approve'
+  description     String?          @db.Text
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  deletedAt       DateTime?        @db.Timestamptz(6)
+
+  // Relations
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+/// Many-to-Many join table mapping roles and permissions
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  createdAt    DateTime   @default(now()) @db.Timestamptz(6)
+
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+/// Join table mapping users to organizations with a specific role
+model UserOrganization {
+  userId         String       @db.Uuid
+  organizationId String       @db.Uuid
+  roleId         String       @db.Uuid
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  deletedAt      DateTime?    @db.Timestamptz(6)
+
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role           Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@id([userId, organizationId])
+  @@map("user_organizations")
+}
+
+/// Active login sessions for refresh token rotation tracking
+model UserSession {
+  id               String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId           String   @db.Uuid
+  tokenFamilyId    String   @db.Uuid
+  refreshTokenHash String   @unique @db.VarChar(255)
+  ipAddress        String?  @db.VarChar(45)
+  userAgent        String?  @db.Text
+  expiresAt        DateTime @db.Timestamptz(6)
+  isRevoked        Boolean  @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz(6)
+
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_sessions")
+}
+
+/// Immutable Audit Log records tracking security and configuration updates
+model AuditLog {
+  id             String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String?       @db.Uuid
+  userId         String?       @db.Uuid
+  action         String        @db.VarChar(100) // e.g. auth.login, organization.update
+  resourceName   String        @db.VarChar(100) // e.g. billing, lead
+  resourceId     String?       @db.Uuid
+  payloadBefore  Json?
+  payloadAfter   Json?
+  ipAddress      String?       @db.VarChar(45)
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@map("audit_logs")
+}
+
+/// Integration Webhook Logs table serving as an idempotence guard
+model IntegrationWebhookLog {
+  id          String   @id @db.VarChar(255) // Stripe event id (evt_...)
+  source      String   @db.VarChar(100)     // e.g. stripe
+  processedAt DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("integration_webhook_logs")
+}
