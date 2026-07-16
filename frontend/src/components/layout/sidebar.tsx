@@ -36,7 +36,10 @@ export function Sidebar() {
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 gap-3 border-b border-border/40 select-none">
-        <div className="h-9 w-9 min-w-[36px] rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-sm tracking-wider shadow shadow-primary/20">
+        <div 
+          className="h-9 w-9 min-w-[36px] rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-sm tracking-wider shadow shadow-primary/20"
+          aria-hidden="true"
+        >
           DGO
         </div>
         {!isCollapsed && (
@@ -52,7 +55,10 @@ export function Sidebar() {
       </div>
 
       {/* Navigation List */}
-      <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+      <nav 
+        className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto"
+        aria-label="Main Navigation"
+      >
         {filteredNavigation.map((item) => {
           const Icon = item.icon;
           const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
@@ -61,13 +67,16 @@ export function Sidebar() {
             <Link
               key={item.path}
               href={item.path}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 isActive
                   ? 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
               }`}
             >
-              <Icon className={`h-5 w-5 transition-transform ${isActive ? 'text-primary' : 'group-hover:scale-105'}`} />
+              <Icon 
+                className={`h-5 w-5 transition-transform ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-105'}`} 
+                aria-hidden="true" 
+              />
               {!isCollapsed && <span className="truncate">{item.label}</span>}
             </Link>
           );
@@ -77,9 +86,11 @@ export function Sidebar() {
       {/* Collapsed Toggle Button */}
       <button
         onClick={() => setIsCollapsed(!isCollapsed)}
-        className="absolute bottom-6 -right-3 h-6 w-6 rounded-full border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground shadow hover:bg-accent transition-colors z-50 cursor-pointer"
+        aria-expanded={!isCollapsed}
+        aria-label={isCollapsed ? 'Expand sidebar navigation panel' : 'Collapse sidebar navigation panel'}
+        className="absolute bottom-6 -right-3 h-6 w-6 rounded-full border border-border bg-card flex items-center justify-center text-muted-foreground hover:text-foreground shadow hover:bg-accent transition-colors z-50 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
       >
-        {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronLeft className="h-3.5 w-3.5" />}
+        {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" aria-hidden="true" /> : <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />}
       </button>
     </aside>
   );

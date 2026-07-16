@@ -1,5 +1,3 @@
-'use client';
-
 import React from 'react';
 import { AuthGuard } from '../../components/auth/auth-guard';
 import { ErrorBoundary } from '../../components/ui/error-boundary';
@@ -10,12 +8,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <AuthGuard>
       <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-        {/* Sidebar Container */}
+        {/* Sidebar Container - Client component rendered inside Server Layout */}
         <Sidebar />
 
         {/* Workspace Content Shell */}
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {/* Header/Navbar */}
+          {/* Header/Navbar - Client component */}
           <Navbar />
 
           {/* Main workspace view */}

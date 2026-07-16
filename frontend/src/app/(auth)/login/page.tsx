@@ -2,6 +2,8 @@
 
 import React, { useState } from 'react';
 import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
 import { useAuthStore } from '../../../store/auth-store';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, ShieldCheck } from 'lucide-react';
@@ -48,29 +50,29 @@ export default function LoginPage() {
       {/* Form Fields */}
       <form className="flex flex-col gap-4" onSubmit={(e) => e.preventDefault()}>
         <div className="flex flex-col gap-1.5 relative">
-          <label className="text-xs font-semibold text-muted-foreground pl-1">Email Address</label>
+          <Label className="pl-1">Email Address</Label>
           <div className="relative">
-            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <input
+            <Mail className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <Input
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="name@company.com"
-              className="w-full h-10 pl-10 pr-4 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="pl-10"
             />
           </div>
         </div>
 
         <div className="flex flex-col gap-1.5 relative">
-          <label className="text-xs font-semibold text-muted-foreground pl-1">Password</label>
+          <Label className="pl-1">Password</Label>
           <div className="relative">
-            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
-            <input
+            <Lock className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" aria-hidden="true" />
+            <Input
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="••••••••••••"
-              className="w-full h-10 pl-10 pr-4 rounded-lg border border-border bg-background/50 text-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent transition-all"
+              className="pl-10"
             />
           </div>
         </div>
