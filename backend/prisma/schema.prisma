@@ -20,6 +20,7 @@ model Organization {
   userOrganizations UserOrganization[]
   auditLogs         AuditLog[]
   roles             Role[]
+  leads             Lead[]
 
   @@map("organizations")
 }
@@ -42,6 +43,7 @@ model User {
   userOrganizations UserOrganization[]
   userSessions      UserSession[]
   auditLogs         AuditLog[]
+  ownedLeads        Lead[]
 
   @@map("users")
 }
@@ -160,4 +162,37 @@ model IntegrationWebhookLog {
   processedAt DateTime @default(now()) @db.Timestamptz(6)
 
   @@map("integration_webhook_logs")
+}
+
+/// B2B Customer Relationship Leads
+model Lead {
+  id                     String        @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId         String        @db.Uuid
+  ownerId                String?       @db.Uuid
+  firstName              String        @db.VarChar(100)
+  lastName               String        @db.VarChar(100)
+  email                  String        @db.VarChar(255)
+  phone                  String?       @db.VarChar(50)
+  companyName            String        @db.VarChar(255)
+  website                String?       @db.VarChar(255)
+  source                 String        @db.VarChar(100)
+  status                 String        @default("new") @db.VarChar(50) // new, contacted, qualified, nurturing, unqualified, converted
+  score                  Int           @default(0)
+  budget                 Decimal?      @db.Decimal(18, 4)
+  convertedAt            DateTime?     @db.Timestamptz(6)
+  convertedAccountId     String?       @db.Uuid
+  convertedContactId     String?       @db.Uuid
+  convertedOpportunityId String?       @db.Uuid
+  createdAt              DateTime      @default(now()) @db.Timestamptz(6)
+  updatedAt              DateTime      @updatedAt @db.Timestamptz(6)
+  deletedAt              DateTime?     @db.Timestamptz(6)
+
+  organization           Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  owner                  User?         @relation(fields: [ownerId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId])
+  @@index([ownerId])
+  @@index([email])
+  @@index([companyName])
+  @@map("leads")
 }
