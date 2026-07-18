@@ -35,10 +35,18 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
       throw new UnauthorizedException('Token credentials validation failed');
     }
 
-    // Overwrite the request context storage with validated JWT credentials to prevent header spoofing
     this.requestContextService.setUserId(payload.sub);
-    if (payload.orgId) {
-      this.requestContextService.setTenantId(payload.orgId);
+
+    if (payload.role === 'SuperAdmin') {
+      // SuperAdmins can keep the tenantId set from client headers (for workspace switching),
+      // fallback to token's orgId if header was empty.
+      const currentTenant = this.requestContextService.getTenantId();
+      if (!currentTenant && payload.orgId) {
+        this.requestContextService.setTenantId(payload.orgId);
+      }
+    } else {
+      // Force regular users context to strictly match their validated token orgId, ignoring headers
+      this.requestContextService.setTenantId(payload.orgId || '');
     }
 
     // Return object mapped to req.user

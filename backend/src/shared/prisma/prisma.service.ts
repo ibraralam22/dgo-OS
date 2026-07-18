@@ -10,7 +10,6 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  // We expose a public "client" property containing the extended Prisma client that applies RLS
   public readonly client: any;
   private readonly pool: Pool;
 
@@ -39,20 +38,44 @@ export class PrismaService
     this.pool = pool;
 
     // Create the extended client mapping automatic tenant context queries
-    this.client = this.$extends({
+    const extendedClient = this.$extends({
       query: {
         $allModels: {
           async $allOperations({ model, operation, args, query }) {
             const tenantId = requestContextService.getTenantId();
 
             // Set of models that enforce row-level organization filters
-            const tenantBoundModels = ['AuditLog', 'UserOrganization'];
+            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role'];
 
-            // If we have a tenant ID in context and the model is tenant-bound,
-            // we inject the organizationId directly into the query / operation payload.
             if (tenantId && tenantBoundModels.includes(model)) {
               const queryArgs = (args || {}) as any;
 
+              // Special multi-tenant read filter for Role: allow tenant role OR global system role (null organizationId)
+              const isReadOp = [
+                'findFirst',
+                'findMany',
+                'count',
+                'aggregate',
+                'groupBy',
+              ].includes(operation);
+
+              if (model === 'Role' && isReadOp) {
+                const existingWhere = queryArgs.where || {};
+                queryArgs.where = {
+                  AND: [
+                    existingWhere,
+                    {
+                      OR: [
+                        { organizationId: tenantId },
+                        { organizationId: null },
+                      ],
+                    },
+                  ],
+                };
+                return query(queryArgs);
+              }
+
+              // Strict RLS for all other operations and models
               // Read operations: inject filter condition
               if (
                 [
@@ -129,6 +152,22 @@ export class PrismaService
         },
       },
     });
+
+    this.client = extendedClient;
+
+    // NestJS lifecycle context hooks setup
+    const onModuleInit = this.onModuleInit.bind(this);
+    const onModuleDestroy = this.onModuleDestroy.bind(this);
+
+    // Return the proxy client wrapping the extended instance. This routes standard calls
+    // (e.g. this.prisma.user.findMany) directly through the tenant-scoping extension layer!
+    return new Proxy(extendedClient, {
+      get(target, prop, receiver) {
+        if (prop === 'onModuleInit') return onModuleInit;
+        if (prop === 'onModuleDestroy') return onModuleDestroy;
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as any;
   }
 
   async onModuleInit() {

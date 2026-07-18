@@ -8,6 +8,7 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import * as express from 'express';
 import { AuthService, AuthSessionResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
@@ -47,6 +48,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 15000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login user with email and password credentials' })
@@ -76,6 +78,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 15000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -122,6 +125,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
   @Post('register-superadmin')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new SuperAdmin user manually using a registration secret key' })

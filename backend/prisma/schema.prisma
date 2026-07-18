@@ -107,6 +107,8 @@ model UserOrganization {
   role           Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
 
   @@id([userId, organizationId])
+  @@index([roleId])
+  @@index([organizationId])
   @@map("user_organizations")
 }
 
@@ -124,6 +126,8 @@ model UserSession {
 
   user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([tokenFamilyId])
+  @@index([userId])
   @@map("user_sessions")
 }
 
@@ -143,6 +147,9 @@ model AuditLog {
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
   user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@index([organizationId])
+  @@index([userId])
+  @@index([createdAt(sort: Desc)])
   @@map("audit_logs")
 }
 

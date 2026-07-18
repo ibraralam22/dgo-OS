@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { usersApi, UserListItem } from '@services/users-api';
 import { toast } from '@utils/toast';
 import { useAuthStore } from '@store/auth-store';
+import { useDebounce } from '@hooks/use-debounce';
 import {
   Users,
   Plus,
@@ -180,14 +181,11 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSearch = useDebounce(search, 300);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
   // Modal state

@@ -81,17 +81,20 @@ export class HttpExceptionFilter implements ExceptionFilter {
     }
     // Catch general application Errors
     else if (exception instanceof Error) {
-      message = exception.message;
       this.logger.error(
         `Unhandled exception: ${exception.message}`,
         exception.stack,
       );
+
+      const isProduction = process.env.NODE_ENV === 'production';
+      message = isProduction ? 'Internal server error' : exception.message;
     }
     // Fallback for untyped exceptions
     else {
       this.logger.error(
         `Unknown exception caught: ${JSON.stringify(exception)}`,
       );
+      message = 'Internal server error';
     }
 
     response.status(status).json({
