@@ -1,14 +1,14 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Button } from '../../../components/ui/button';
-import { Input } from '../../../components/ui/input';
-import { Label } from '../../../components/ui/label';
-import { useAuthStore } from '../../../store/auth-store';
+import { Button } from '@components/ui/button';
+import { Input } from '@components/ui/input';
+import { Label } from '@components/ui/label';
+import { useAuthStore } from '@store/auth-store';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Loader2 } from 'lucide-react';
-import { authApi } from '../../../services/auth-api';
-import { toast } from '../../../utils/toast';
+import { authApi } from '@services/auth-api';
+import { toast } from '@utils/toast';
 
 export default function LoginPage() {
   const router = useRouter();

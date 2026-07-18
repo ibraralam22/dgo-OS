@@ -1,4 +1,4 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
+import { Injectable, OnModuleInit, OnModuleDestroy, NotFoundException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
@@ -119,12 +119,28 @@ export class PrismaService
                 return query(queryArgs);
               }
 
-              // update, updateMany, delete, deleteMany: filter mutation targets
+              // update, delete: verify tenant ownership using findFirst before mutating via unique key
+              if (operation === 'update' || operation === 'delete') {
+                const queryArgs = (args || {}) as any;
+                const existingWhere = queryArgs.where || {};
+                const ctx = Prisma.getExtensionContext(this);
+                const checkArgs = {
+                  where: {
+                    ...existingWhere,
+                    organizationId: tenantId,
+                  },
+                };
+                const record = await (ctx as any).findFirst(checkArgs);
+                if (!record) {
+                  throw new NotFoundException(`Record not found or access denied`);
+                }
+                return query(args);
+              }
+
+              // updateMany, deleteMany: filter mutation targets directly
               if (
                 [
-                  'update',
                   'updateMany',
-                  'delete',
                   'deleteMany',
                 ].includes(operation)
               ) {

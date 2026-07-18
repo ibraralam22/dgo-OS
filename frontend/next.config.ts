@@ -5,7 +5,7 @@ import type { NextConfig } from 'next';
  * The frontend never knows the backend address — all requests go through
  * the /api/proxy/* rewrite below, which Next.js resolves on the server.
  */
-const API_URL = process.env.API_URL || 'http://localhost:8000/api/v1';
+const API_URL = process.env.API_URL;
 
 const nextConfig: NextConfig = {
   reactCompiler: true,

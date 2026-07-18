@@ -27,6 +27,7 @@
       "@routes/*": ["./src/routes/*"],
       "@services/*": ["./src/services/*"],
       "@query/*": ["./src/data/*"],
+      "@lib/utils": ["./src/utils/cn.ts"],
       "@lib/*": ["./src/lib/*"],
       "@utils/*": ["./src/utils/*"],
       "@store/*": ["./src/store/*"],
