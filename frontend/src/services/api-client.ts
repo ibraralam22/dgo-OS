@@ -74,14 +74,52 @@ apiClient.interceptors.response.use(
     }
 
     // ── 401 Unauthorized ──────────────────────────────────────────────────────
-    // Session expired or invalid token — clear state and redirect.
+    // Access token expired — attempt silent refresh before forcing logout.
     if (status === 401) {
       const isLoginRequest = error.config?.url?.includes('/auth/login');
+      const isRefreshRequest = error.config?.url?.includes('/auth/refresh');
+
       if (isLoginRequest) {
         toast.error('Invalid email or password.');
         return Promise.reject(error);
       }
 
+      const originalRequest = error.config;
+      if (originalRequest && !isRefreshRequest && !(originalRequest as any)._retry) {
+        (originalRequest as any)._retry = true;
+        try {
+          // Perform silent refresh using clean axios instance to bypass request interceptors
+          const refreshRes = await axios.post<any>(
+            `${baseURL}/auth/refresh`,
+            {},
+            { withCredentials: true }
+          );
+
+          const { accessToken, user, organizations } = refreshRes.data;
+
+          // Hydrate the store with the rotated credentials
+          useAuthStore.getState().login(user, accessToken, organizations);
+
+          // Update header with the new token
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+          }
+
+          // Retry original request
+          return apiClient(originalRequest);
+        } catch (refreshError) {
+          // Token refresh failed (refresh token expired/compromised) — execute logout
+          const logout = useAuthStore.getState().logout;
+          logout();
+          toast.error('Your session has expired. Please sign in again.');
+          if (typeof window !== 'undefined') {
+            window.location.href = '/login';
+          }
+          return Promise.reject(refreshError);
+        }
+      }
+
+      // If refresh request itself failed with 401, or originalRequest was not retryable
       const logout = useAuthStore.getState().logout;
       logout();
       toast.error('Your session has expired. Please sign in again.');

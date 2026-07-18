@@ -10,6 +10,7 @@ import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 export interface AuthSessionResponse {
   accessToken: string;
@@ -35,6 +36,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly requestContextService: RequestContextService,
   ) {}
 
   /**
@@ -95,8 +97,11 @@ export class AuthService {
     ipAddress?: string,
     userAgent?: string,
     requestedOrgId?: string,
+    tx?: any,
   ): Promise<AuthSessionResponse> {
-    const userOrgs = await this.prisma.userOrganization.findMany({
+    const db = tx || this.prisma;
+
+    const userOrgs = await db.userOrganization.findMany({
       where: { userId, deletedAt: null },
       include: {
         organization: true,
@@ -118,7 +123,7 @@ export class AuthService {
 
     // Support tenant switching: find the requested organization if user belongs to it, otherwise default to first
     let activeOrgMapping = userOrgs.find(
-      (uo) => uo.organizationId === requestedOrgId,
+      (uo: any) => uo.organizationId === requestedOrgId,
     );
     if (!activeOrgMapping) {
       activeOrgMapping = userOrgs[0];
@@ -126,10 +131,10 @@ export class AuthService {
 
     const roleName = activeOrgMapping.role.name;
     const permissions = activeOrgMapping.role.rolePermissions.map(
-      (rp) => rp.permission.code,
+      (rp: any) => rp.permission.code,
     );
 
-    const userRecord = await this.prisma.user.findUnique({
+    const userRecord = await db.user.findUnique({
       where: { id: userId },
     });
     if (!userRecord) {
@@ -153,7 +158,7 @@ export class AuthService {
     const refreshTokenHash = this.hashToken(rawRefreshToken);
 
     // Store the refresh token session structure in PostgreSQL database
-    await this.prisma.userSession.create({
+    await db.userSession.create({
       data: {
         userId,
         tokenFamilyId,
@@ -165,7 +170,7 @@ export class AuthService {
     });
 
     // Populate user profile info package
-    const organizations = userOrgs.map((uo) => ({
+    const organizations = userOrgs.map((uo: any) => ({
       id: uo.organization.id,
       name: uo.organization.name,
       subdomain: uo.organization.subdomain,
@@ -202,33 +207,32 @@ export class AuthService {
       include: { user: true },
     });
 
-    // Reuse detection: If session token does not exist but refresh token is valid in payload history,
-    // it could indicate a token compromise. For safety, we would locate the family scope.
-    // However, if we locate a session marked as revoked, we terminate all active tokens in the family!
     if (!session) {
       throw new UnauthorizedException('Token rotation session not found');
     }
 
     if (session.isRevoked || session.expiresAt < new Date()) {
-      // Revoke the entire token family (compromised reuse detected)
-      await this.prisma.userSession.updateMany({
-        where: { tokenFamilyId: session.tokenFamilyId },
-        data: { isRevoked: true },
-      });
+      // Revoke the entire token family atomically inside a Prisma transaction
+      await this.prisma.$transaction(async (tx) => {
+        await tx.userSession.updateMany({
+          where: { tokenFamilyId: session.tokenFamilyId },
+          data: { isRevoked: true },
+        });
 
-      // Log high-priority security alert to DB
-      await this.prisma.auditLog.create({
-        data: {
-          userId: session.userId,
-          action: 'auth.compromise_detected',
-          resourceName: 'session',
-          ipAddress,
-          payloadBefore: {
-            sessionId: session.id,
-            tokenFamilyId: session.tokenFamilyId,
+        // Log high-priority security alert to DB
+        await tx.auditLog.create({
+          data: {
+            userId: session.userId,
+            action: 'auth.compromise_detected',
+            resourceName: 'session',
+            ipAddress,
+            payloadBefore: {
+              sessionId: session.id,
+              tokenFamilyId: session.tokenFamilyId,
+            },
+            payloadAfter: { action: 'revoked_family' },
           },
-          payloadAfter: { action: 'revoked_family' },
-        },
+        });
       });
 
       throw new UnauthorizedException(
@@ -236,20 +240,24 @@ export class AuthService {
       );
     }
 
-    // Revoke the old session token
-    await this.prisma.userSession.update({
-      where: { id: session.id },
-      data: { isRevoked: true },
-    });
+    // Standard session rotation wrapped atomically inside a Prisma transaction
+    return this.prisma.$transaction(async (tx) => {
+      // Revoke the old session token
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { isRevoked: true },
+      });
 
-    // Generate new rotated session within the same family scope
-    return this.createSession(
-      session.userId,
-      session.tokenFamilyId,
-      ipAddress,
-      userAgent,
-      requestedOrgId,
-    );
+      // Generate new rotated session within the same family scope using transactional DB delegate
+      return this.createSession(
+        session.userId,
+        session.tokenFamilyId,
+        ipAddress,
+        userAgent,
+        requestedOrgId,
+        tx,
+      );
+    });
   }
 
   /**
@@ -293,13 +301,16 @@ export class AuthService {
     }
 
     // Find the default organization (first active org)
-    let defaultOrg = await this.prisma.organization.findFirst({
+    const defaultOrg = await this.prisma.organization.findFirst({
       where: { deletedAt: null },
       orderBy: { createdAt: 'asc' },
     });
     if (!defaultOrg) {
       throw new BadRequestException('No organizations found. Please run database seeding first.');
     }
+
+    // Clear tenantId context in case the client sent a spoofed header on this public route
+    this.requestContextService.setTenantId('');
 
     // Hash the password
     const passwordHash = await bcrypt.hash(dto.password, 10);

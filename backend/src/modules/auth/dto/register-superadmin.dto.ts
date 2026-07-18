@@ -5,6 +5,7 @@ import {
   IsString,
   MinLength,
   MaxLength,
+  Matches,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 
@@ -34,8 +35,11 @@ export class RegisterSuperAdminDto {
   })
   @IsString({ message: 'Password must be a string' })
   @IsNotEmpty({ message: 'Password is required' })
-  @MinLength(8, { message: 'Password must be at least 8 characters long' })
+  @MinLength(12, { message: 'Password must be at least 12 characters long' })
   @MaxLength(100, { message: 'Password cannot exceed 100 characters' })
+  @Matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^a-zA-Z0-9]).+$/, {
+    message: 'Password must contain at least 1 uppercase, 1 lowercase, 1 number, and 1 special character',
+  })
   password!: string;
 
   @ApiProperty({
