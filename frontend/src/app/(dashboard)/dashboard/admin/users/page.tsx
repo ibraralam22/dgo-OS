@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, UserListItem, CreateUserPayload } from '../../../../services/users-api';
+import { usersApi, UserListItem } from '../../../../services/users-api';
+import { toast } from '../../../../utils/toast';
 import { useAuthStore } from '../../../../store/auth-store';
 import {
   Users,
@@ -213,18 +214,40 @@ export default function UsersPage() {
   const updateUserMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, string> }) =>
       usersApi.update(id, payload),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setConfirmAction(null); },
+    onSuccess: (_data, vars) => {
+      const action = vars.payload.status === 'suspended' ? 'suspended' : 'activated';
+      toast.success(`User ${action} successfully.`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setConfirmAction(null);
+    },
+    onError: (err: unknown) => {
+      toast.error(err, 'Action failed. Please try again.');
+    },
   });
 
   const updateRoleMutation = useMutation({
     mutationFn: ({ id, roleName }: { id: string; roleName: string }) =>
       usersApi.updateRole(id, roleName),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setRoleUser(null); },
+    onSuccess: () => {
+      toast.success('Role updated successfully.');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setRoleUser(null);
+    },
+    onError: (err: unknown) => {
+      toast.error(err, 'Role update failed.');
+    },
   });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setConfirmAction(null); },
+    onSuccess: () => {
+      toast.success('User removed from organization.');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setConfirmAction(null);
+    },
+    onError: (err: unknown) => {
+      toast.error(err, 'Remove failed. Please try again.');
+    },
   });
 
   const users = data?.data ?? [];

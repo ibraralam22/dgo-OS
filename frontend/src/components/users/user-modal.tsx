@@ -7,6 +7,7 @@ import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Label } from '../ui/label';
 import { X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { toast } from '../../utils/toast';
 
 type ModalMode = 'create' | 'edit' | 'role';
 
@@ -32,7 +33,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
   const [roleName, setRoleName] = useState(user?.role.name ?? ROLES[0]);
-  const [error, setError] = useState<string | null>(null);
 
   // Lock scroll when modal open
   useEffect(() => {
@@ -43,33 +43,36 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
   // Create user mutation
   const createMutation = useMutation({
     mutationFn: (payload: CreateUserPayload) => usersApi.create(payload),
-    onSuccess: () => onSuccess(),
+    onSuccess: () => {
+      toast.success('User created successfully.');
+      onSuccess();
+    },
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred. Please try again.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+      toast.error(err, 'An error occurred. Please try again.');
     },
   });
 
   // Edit profile mutation
   const editMutation = useMutation({
     mutationFn: (payload: Record<string, string>) => usersApi.update(user!.id, payload),
-    onSuccess: () => onSuccess(),
+    onSuccess: () => {
+      toast.success('Profile updated successfully.');
+      onSuccess();
+    },
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+      toast.error(err, 'An error occurred.');
     },
   });
 
   // Change role mutation
   const roleMutation = useMutation({
     mutationFn: (role: string) => usersApi.updateRole(user!.id, role),
-    onSuccess: () => onSuccess(),
+    onSuccess: () => {
+      toast.success('Role updated successfully.');
+      onSuccess();
+    },
     onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+      toast.error(err, 'An error occurred.');
     },
   });
 
@@ -77,11 +80,10 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (isCreate) {
       if (!email || !firstName || !lastName || !password || !roleName) {
-        setError('Please fill all required fields.');
+        toast.error('Please fill all required fields.');
         return;
       }
       createMutation.mutate({ email, firstName, lastName, phone: phone || undefined, password, roleName });
@@ -126,13 +128,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
 
         {/* Body */}
         <form id="user-modal-form" onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/25 p-3 text-xs font-medium text-destructive whitespace-pre-line">
-              {error}
-            </div>
-          )}
-
           {/* Role-only mode */}
           {isRole && (
             <div className="flex flex-col gap-1.5">

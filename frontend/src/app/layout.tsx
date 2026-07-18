@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { QueryProvider } from '../services/query-provider';
+import { ToastProvider } from '../components/ui/toast-provider';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -14,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'DGO CRM - Enterprise Software Operating System',
+  title: 'DGO CRM - Operating System',
   description: 'Production-grade multi-tenant B2B CRM for Decent Global Outsourcing (DGO).',
 };
 
@@ -32,6 +33,7 @@ export default function RootLayout({
         <QueryProvider>
           {children}
         </QueryProvider>
+        <ToastProvider />
       </body>
     </html>
   );

@@ -8,6 +8,7 @@ import { useAuthStore } from '../../../store/auth-store';
 import { useRouter } from 'next/navigation';
 import { Mail, Lock, Loader2 } from 'lucide-react';
 import { authApi } from '../../../services/auth-api';
+import { toast } from '../../../utils/toast';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -15,25 +16,22 @@ export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) {
-      setError('Please fill in all fields.');
+      toast.error('Please fill in all fields.');
       return;
     }
     setLoading(true);
-    setError(null);
 
     try {
       const response = await authApi.login({ email, password });
       login(response.user, response.accessToken, response.organizations);
+      toast.success('Welcome back!');
       router.push('/dashboard');
     } catch (err: unknown) {
-      const errorResponse = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = errorResponse.response?.data?.message || 'Invalid email or password.';
-      setError(Array.isArray(msg) ? msg.join(', ') : msg);
+      toast.error(err, 'Invalid email or password.');
     } finally {
       setLoading(false);
     }
@@ -41,13 +39,6 @@ export default function LoginPage() {
 
   return (
     <div className="flex flex-col gap-6 w-full max-w-sm">
-      {/* Error Toast / Alert */}
-      {error && (
-        <div className="p-3 rounded-lg bg-destructive/10 border border-destructive/20 text-xs font-semibold text-destructive animate-in fade-in slide-in-from-top-1 duration-200">
-          {error}
-        </div>
-      )}
-
       <div className="flex flex-col gap-2">
         <h2 className="text-lg font-bold text-foreground">Sign In</h2>
         <p className="text-xs text-muted-foreground leading-normal">
