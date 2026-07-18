@@ -11,6 +11,7 @@ import {
 import * as express from 'express';
 import { AuthService, AuthSessionResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { ActiveUser } from '../../common/decorators/user.decorator';
 import {
@@ -118,5 +119,14 @@ export class AuthController {
     }
     this.clearRefreshCookie(res);
     return { success: true, message: 'Logged out successfully' };
+  }
+
+  @Public()
+  @Post('register-superadmin')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new SuperAdmin user manually using a registration secret key' })
+  @ApiResponse({ status: 201, description: 'SuperAdmin created successfully' })
+  async registerSuperAdmin(@Body() dto: RegisterSuperAdminDto) {
+    return this.authService.registerSuperAdmin(dto);
   }
 }

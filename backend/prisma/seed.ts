@@ -109,53 +109,7 @@ async function main() {
     },
   });
 
-  // 4. Create Default SuperAdmin User
-  console.log('Locking in default SuperAdmin user...');
-  const email = 'superadmin@dgo.com';
-  const passwordHash = await bcrypt.hash('DgoSecure2026!', 10);
-  
-  const superAdminUser = await prisma.user.upsert({
-    where: { id: '00000000-0000-0000-0000-000000000002' }, // Deterministic UUID
-    update: {
-      email,
-      passwordHash,
-      firstName: 'Super',
-      lastName: 'Admin',
-      status: 'active',
-    },
-    create: {
-      id: '00000000-0000-0000-0000-000000000002',
-      email,
-      passwordHash,
-      firstName: 'Super',
-      lastName: 'Admin',
-      status: 'active',
-    },
-  });
-
-  // 5. Associate User to Organization with SuperAdmin Role
-  console.log('Mapping user to tenant...');
-  await prisma.userOrganization.upsert({
-    where: {
-      userId_organizationId: {
-        userId: superAdminUser.id,
-        organizationId: org.id,
-      },
-    },
-    update: {
-      roleId: rolesMap['SuperAdmin'],
-    },
-    create: {
-      userId: superAdminUser.id,
-      organizationId: org.id,
-      roleId: rolesMap['SuperAdmin'],
-    },
-  });
-
   console.log('🌿 Seeding completed successfully!');
-  console.log(`\nDefault SuperAdmin Credentials:`);
-  console.log(`Email: ${email}`);
-  console.log(`Password: DgoSecure2026!`);
 }
 
 main()

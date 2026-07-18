@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
 
 export interface AuthSessionResponse {
   accessToken: string;
@@ -259,6 +260,77 @@ export class AuthService {
     await this.prisma.userSession.updateMany({
       where: { refreshTokenHash: hash },
       data: { isRevoked: true },
+    });
+  }
+
+  /**
+   * Registers a new SuperAdmin user given a correct secret key.
+   */
+  async registerSuperAdmin(dto: RegisterSuperAdminDto) {
+    const configSecret = this.configService.get<string>('SUPERADMIN_REGISTRATION_SECRET');
+    if (!configSecret) {
+      throw new BadRequestException('SUPERADMIN_REGISTRATION_SECRET is not configured on the server');
+    }
+
+    if (dto.secretKey !== configSecret) {
+      throw new UnauthorizedException('Invalid registration secret key');
+    }
+
+    // Check if user already exists
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email: dto.email, deletedAt: null },
+    });
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    // Find the SuperAdmin role
+    const superAdminRole = await this.prisma.role.findFirst({
+      where: { name: 'SuperAdmin' },
+    });
+    if (!superAdminRole) {
+      throw new BadRequestException('SuperAdmin role not found. Please run database seeding first.');
+    }
+
+    // Find the default organization (first active org)
+    let defaultOrg = await this.prisma.organization.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!defaultOrg) {
+      throw new BadRequestException('No organizations found. Please run database seeding first.');
+    }
+
+    // Hash the password
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    // Create the User and UserOrganization entry in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          status: 'active',
+        },
+      });
+
+      await tx.userOrganization.create({
+        data: {
+          userId: newUser.id,
+          organizationId: defaultOrg.id,
+          roleId: superAdminRole.id,
+        },
+      });
+
+      return {
+        id: newUser.id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        organizationName: defaultOrg.name,
+      };
     });
   }
 }
