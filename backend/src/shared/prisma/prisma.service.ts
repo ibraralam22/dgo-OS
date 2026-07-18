@@ -66,6 +66,7 @@ export class PrismaService
               'ProjectOnboarding',
               'OnboardingMilestone',
               'Quotation',
+              'Task',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {

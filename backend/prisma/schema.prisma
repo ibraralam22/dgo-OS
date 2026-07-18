@@ -27,6 +27,7 @@ model Organization {
   projectOnboardings ProjectOnboarding[]
   onboardingMilestones OnboardingMilestone[]
   quotations         Quotation[]
+  tasks              Task[]
 
   @@map("organizations")
 }
@@ -53,6 +54,8 @@ model User {
   opportunities      Opportunity[]
   approvedQuotations Quotation[]        @relation("QuotationApproval")
   managedProjects    ProjectOnboarding[] @relation(name: "ManagerProjects")
+  assignedTasks      Task[]             @relation("TaskAssignee")
+  createdTasks       Task[]             @relation("TaskCreator")
 
   @@map("users")
 }
@@ -428,3 +431,52 @@ model QuoteLineItem {
   @@map("quote_line_items")
 }
 
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+/// Cross-entity task management — assignable to-dos linked to any CRM record
+model Task {
+  id             String       @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String       @db.Uuid
+  title          String       @db.VarChar(255)
+  description    String?      @db.Text
+  status         TaskStatus   @default(TODO)
+  priority       TaskPriority @default(MEDIUM)
+  dueDate        DateTime?    @db.Timestamptz(6)
+  completedAt    DateTime?    @db.Timestamptz(6)
+
+  // Polymorphic entity link (optional)
+  entityType     String?      @db.VarChar(50) // 'lead' | 'account' | 'opportunity' | 'project'
+  entityId       String?      @db.Uuid
+
+  // People
+  assignedToId   String?      @db.Uuid
+  createdById    String       @db.Uuid
+
+  createdAt      DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime     @updatedAt @db.Timestamptz(6)
+  deletedAt      DateTime?    @db.Timestamptz(6)
+
+  // Relations
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  assignedTo     User?        @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdBy      User         @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId])
+  @@index([assignedToId])
+  @@index([entityType, entityId])
+  @@index([status])
+  @@index([dueDate])
+  @@map("tasks")
+}

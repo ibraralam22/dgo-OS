@@ -33,6 +33,8 @@ async function main() {
     { code: 'iam:write', description: 'Create, update, and assign roles to users in tenant' },
     { code: 'projects:read', description: 'Read project records and milestones' },
     { code: 'projects:write', description: 'Create and update projects and milestones' },
+    { code: 'tasks:read', description: 'View tasks assigned to self or team' },
+    { code: 'tasks:write', description: 'Create, update, and delete tasks' },
   ];
 
   console.log('Locking in permissions...');
@@ -73,6 +75,8 @@ async function main() {
         'iam:write',
         'projects:read',
         'projects:write',
+        'tasks:read',
+        'tasks:write',
       ],
     },
     {
@@ -87,6 +91,8 @@ async function main() {
         'quotations:read',
         'quotations:write',
         'projects:read',
+        'tasks:read',
+        'tasks:write',
       ],
     },
     {

@@ -9,6 +9,7 @@ import {
   CreditCard,
   LucideIcon,
   Shield,
+  CheckSquare,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -48,6 +49,12 @@ export const navigationItems: NavItem[] = [
     path: '/dashboard/projects',
     icon: Briefcase,
     requiredPermissions: ['projects:read'],
+  },
+  {
+    label: 'Tasks',
+    path: '/dashboard/tasks',
+    icon: CheckSquare,
+    requiredPermissions: ['tasks:read'],
   },
   {
     label: 'Financials & Invoices',
