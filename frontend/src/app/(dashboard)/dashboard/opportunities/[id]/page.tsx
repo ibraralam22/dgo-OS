@@ -27,7 +27,10 @@ import {
 import { Button } from '@components/ui/button';
 import { Input } from '@components/ui/input';
 import OpportunityModal from '@components/opportunities/opportunity-modal';
+import QuotationModal from '@components/opportunities/quotation-modal';
+import { quotationsApi } from '@services/quotations-api';
 import { cn } from '@utils/cn';
+import { Plus, Trash2, Send, Check } from 'lucide-react';
 
 const STAGE_STEPS: { stage: OpportunityStage; label: string; prob: number }[] = [
   { stage: 'DISCOVERY', label: 'Discovery', prob: 10 },
@@ -46,6 +49,10 @@ export default function OpportunityDetailWorkspace() {
 
   // Selected stage in the stepper to preview or transition
   const [selectedStepperStage, setSelectedStepperStage] = useState<OpportunityStage | null>(null);
+
+  // Quotation states
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [selectedQuotation, setSelectedQuotation] = useState<any>(undefined);
 
   // Transition form fields
   const [contractUrl, setContractUrl] = useState('');
@@ -98,6 +105,55 @@ export default function OpportunityDetailWorkspace() {
     },
   });
 
+  // Fetch Quotations related to this Opportunity
+  const { data: quotationsResponse, isLoading: loadingQuotes } = useQuery({
+    queryKey: ['quotations-list', id],
+    queryFn: () => quotationsApi.list({ opportunityId: id }),
+  });
+  const quotations = quotationsResponse?.data || [];
+
+  // Quotations mutations
+  const deleteQuoteMutation = useMutation({
+    mutationFn: (quoteId: string) => quotationsApi.delete(quoteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotations-list', id] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity-detail', id] });
+      toast.success('Quotation deleted successfully');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to delete quotation';
+      toast.error(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
+  const approveQuoteMutation = useMutation({
+    mutationFn: (quoteId: string) => quotationsApi.approve(quoteId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotations-list', id] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity-detail', id] });
+      toast.success('Quotation discount approved successfully');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to approve quotation';
+      toast.error(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
+  const transitionQuoteMutation = useMutation({
+    mutationFn: (params: { quoteId: string; status: any }) =>
+      quotationsApi.transitionStatus(params.quoteId, params.status),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quotations-list', id] });
+      queryClient.invalidateQueries({ queryKey: ['opportunity-detail', id] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-metrics'] });
+      toast.success('Quotation status updated successfully');
+    },
+    onError: (err: any) => {
+      const msg = err?.response?.data?.message || 'Failed to update status';
+      toast.error(Array.isArray(msg) ? msg[0] : msg);
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="h-96 flex flex-col items-center justify-center gap-2 text-foreground">
@@ -126,6 +182,8 @@ export default function OpportunityDetailWorkspace() {
 
   const hasWriteAccess = user?.permissions.includes('opportunities:write') ?? false;
   const hasApproveAccess = user?.permissions.includes('opportunities:approve') ?? false;
+  const hasQuoteWriteAccess = user?.permissions.includes('quotations:write') ?? false;
+  const hasQuoteApproveAccess = user?.permissions.includes('quotations:approve') ?? false;
 
   const currentStageIndex = STAGE_STEPS.findIndex((s) => s.stage === opportunity.stage);
   const weightedValue = Number(opportunity.amount) * (opportunity.probability / 100);
@@ -516,6 +574,196 @@ export default function OpportunityDetailWorkspace() {
           )}
         </div>
 
+        {/* Quotations & Proposals Section */}
+        <div className="glass-card border border-border/20 rounded-2xl p-6 bg-card/30 flex flex-col gap-5">
+          <div className="flex items-center justify-between border-b border-border/10 pb-2">
+            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+              <Coins className="h-4 w-4 text-muted-foreground" />
+              Quotations & B2B Proposals
+            </h3>
+            {hasQuoteWriteAccess && (
+              <Button
+                onClick={() => {
+                  setSelectedQuotation(undefined);
+                  setIsQuoteModalOpen(true);
+                }}
+                size="sm"
+                className="h-7 font-bold gap-1 cursor-pointer bg-primary text-primary-foreground"
+              >
+                <Plus className="h-3.5 w-3.5" />
+                New Proposal
+              </Button>
+            )}
+          </div>
+
+          {loadingQuotes ? (
+            <div className="flex items-center justify-center py-8 text-xs text-muted-foreground gap-2">
+              <Loader2 className="h-4 w-4 animate-spin text-primary" />
+              Loading quotation versions...
+            </div>
+          ) : quotations.length === 0 ? (
+            <div className="text-xs text-muted-foreground/60 py-6 text-center border border-dashed border-border/30 rounded-xl">
+              No quotation versions generated for this deal yet.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-4">
+              {quotations.map((quote) => {
+                const subTotalVal = Number(quote.subtotal);
+                const totalVal = Number(quote.total);
+                const discountVal = Number(quote.discountPercentage);
+                const taxVal = Number(quote.taxPercentage);
+                const expiresDate = new Date(quote.expiresAt).toLocaleDateString();
+
+                return (
+                  <div
+                    key={quote.id}
+                    className={cn(
+                      'border rounded-xl p-4 flex flex-col gap-3 transition-colors bg-card/15',
+                      quote.status === 'APPROVED' ? 'border-emerald-500/30 bg-emerald-500/[0.02]' : 'border-border/10'
+                    )}
+                  >
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-black bg-primary/10 text-primary px-2 py-0.5 rounded border border-primary/20">
+                          v{quote.version}
+                        </span>
+                        <span className="text-xs font-bold text-foreground">
+                          Grand Total:{' '}
+                          <span className="text-primary font-black">
+                            ${totalVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={cn(
+                            'text-[10px] font-black uppercase px-2 py-0.5 rounded border',
+                            quote.status === 'APPROVED' && 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+                            quote.status === 'DRAFT' && 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+                            quote.status === 'SENT' && 'bg-purple-500/10 text-purple-400 border-purple-500/20',
+                            quote.status === 'EXPIRED' && 'bg-muted/15 text-muted-foreground border-border/20'
+                          )}
+                        >
+                          {quote.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-xs text-muted-foreground flex flex-col gap-1 border-y border-border/5 py-2">
+                      <div className="font-semibold text-foreground mb-1">Snapshot Details:</div>
+                      {quote.lineItems.map((item) => (
+                        <div key={item.id} className="flex justify-between pl-2">
+                          <span>
+                            {item.itemName} (x{item.quantity})
+                          </span>
+                          <span className="font-semibold">${Number(item.subtotal).toLocaleString('en-US')}</span>
+                        </div>
+                      ))}
+                      <div className="flex justify-between pl-2 border-t border-border/5 pt-1 mt-1 text-[11px]">
+                        <span>Subtotal:</span>
+                        <span>${subTotalVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                      {discountVal > 0 && (
+                        <div className="flex justify-between pl-2 text-red-400 text-[11px]">
+                          <span>Discount ({discountVal}%):</span>
+                          <span>
+                            -${((subTotalVal * discountVal) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                      {taxVal > 0 && (
+                        <div className="flex justify-between pl-2 text-[11px]">
+                          <span>Tax ({taxVal}%):</span>
+                          <span>
+                            +${(((subTotalVal * (1 - discountVal / 100)) * taxVal) / 100).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-between text-[11px] text-muted-foreground flex-wrap gap-2">
+                      <span>
+                        Expires At: <strong className="text-foreground">{expiresDate}</strong>
+                      </span>
+
+                      {quote.requiresApproval && !quote.approved && (
+                        <span className="text-amber-400 font-bold bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Approval Pending
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center justify-end gap-2 border-t border-border/5 pt-2 mt-1">
+                      {quote.status === 'DRAFT' && hasQuoteWriteAccess && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedQuotation(quote);
+                              setIsQuoteModalOpen(true);
+                            }}
+                            className="h-7 text-xs cursor-pointer text-foreground"
+                          >
+                            Edit
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteQuoteMutation.mutate(quote.id)}
+                            disabled={deleteQuoteMutation.isPending}
+                            className="h-7 text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 cursor-pointer"
+                          >
+                            {deleteQuoteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                            Delete
+                          </Button>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => transitionQuoteMutation.mutate({ quoteId: quote.id, status: 'SENT' })}
+                            disabled={transitionQuoteMutation.isPending}
+                            className="h-7 text-xs cursor-pointer gap-1 border-border/40 text-foreground"
+                          >
+                            {transitionQuoteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                            <Send className="h-3 w-3" /> Send
+                          </Button>
+                        </>
+                      )}
+
+                      {quote.requiresApproval && !quote.approved && hasQuoteApproveAccess && (
+                        <Button
+                          onClick={() => approveQuoteMutation.mutate(quote.id)}
+                          disabled={approveQuoteMutation.isPending}
+                          className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold h-7 text-xs cursor-pointer"
+                        >
+                          {approveQuoteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                          Clear Discount Approval
+                        </Button>
+                      )}
+
+                      {quote.status !== 'APPROVED' &&
+                        quote.status !== 'EXPIRED' &&
+                        (!quote.requiresApproval || quote.approved) &&
+                        hasQuoteWriteAccess && (
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => transitionQuoteMutation.mutate({ quoteId: quote.id, status: 'APPROVED' })}
+                            disabled={transitionQuoteMutation.isPending}
+                            className="h-7 text-xs font-bold cursor-pointer gap-1 bg-secondary text-secondary-foreground"
+                          >
+                            {transitionQuoteMutation.isPending && <Loader2 className="h-3 w-3 animate-spin mr-1" />}
+                            <Check className="h-3 w-3" /> Activate & Apply
+                          </Button>
+                        )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
         {/* Right Grid: Audit Timeline Logs */}
         <div className="flex flex-col gap-8">
           <div className="glass-card border border-border/20 rounded-2xl p-6 bg-card/30 flex flex-col gap-5 h-[550px] overflow-hidden">
@@ -580,6 +828,17 @@ export default function OpportunityDetailWorkspace() {
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
         opportunity={opportunity}
+      />
+
+      {/* Quotation Builder Modal */}
+      <QuotationModal
+        isOpen={isQuoteModalOpen}
+        onClose={() => {
+          setIsQuoteModalOpen(false);
+          setSelectedQuotation(undefined);
+        }}
+        opportunityId={id}
+        quotation={selectedQuotation}
       />
     </div>
   );

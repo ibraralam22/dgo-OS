@@ -25,6 +25,7 @@ model Organization {
   contacts           Contact[]
   opportunities      Opportunity[]
   projectOnboardings ProjectOnboarding[]
+  quotations         Quotation[]
 
   @@map("organizations")
 }
@@ -47,8 +48,9 @@ model User {
   userOrganizations UserOrganization[]
   userSessions      UserSession[]
   auditLogs         AuditLog[]
-  ownedLeads        Lead[]
-  opportunities     Opportunity[]
+  ownedLeads         Lead[]
+  opportunities      Opportunity[]
+  approvedQuotations Quotation[]        @relation("QuotationApproval")
 
   @@map("users")
 }
@@ -314,6 +316,7 @@ model Opportunity {
   account          Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
   owner            User?             @relation(fields: [ownerId], references: [id])
   onboardings      ProjectOnboarding[]
+  quotations       Quotation[]
 
   @@index([organizationId])
   @@index([accountId])
@@ -341,5 +344,61 @@ model ProjectOnboarding {
   @@index([organizationId])
   @@index([opportunityId])
   @@map("project_onboardings")
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  APPROVED
+  EXPIRED
+}
+
+model Quotation {
+  id                 String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String           @map("organization_id") @db.Uuid
+  opportunityId      String           @map("opportunity_id") @db.Uuid
+  version            Int              @default(1)
+  discountPercentage Decimal          @default(0.00) @map("discount_percentage") @db.Decimal(5, 2)
+  taxPercentage      Decimal          @default(0.00) @map("tax_percentage") @db.Decimal(5, 2)
+  subtotal           Decimal          @default(0.00) @map("subtotal") @db.Decimal(18, 4)
+  total              Decimal          @default(0.00) @map("total") @db.Decimal(18, 4)
+  status             QuotationStatus  @default(DRAFT)
+  expiresAt          DateTime         @map("expires_at") @db.Timestamptz(6)
+  requiresApproval   Boolean          @default(false) @map("requires_approval")
+  approved           Boolean          @default(false) @map("approved")
+  approvedById       String?          @map("approved_by_id") @db.Uuid
+  approvedAt         DateTime?        @map("approved_at") @db.Timestamptz(6)
+  createdAt          DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?        @map("deleted_at") @db.Timestamptz(6)
+  createdBy          String?          @map("created_by") @db.Uuid
+  updatedBy          String?          @map("updated_by") @db.Uuid
+
+  // Relations
+  organization       Organization     @relation(fields: [organizationId], references: [id])
+  opportunity        Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  approvedBy         User?            @relation("QuotationApproval", fields: [approvedById], references: [id])
+  lineItems          QuoteLineItem[]
+
+  @@index([organizationId])
+  @@index([opportunityId])
+  @@index([status])
+  @@map("quotations")
+}
+
+model QuoteLineItem {
+  id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  quotationId String    @map("quotation_id") @db.Uuid
+  itemName    String    @map("item_name") @db.VarChar(255)
+  description String?   @map("description") @db.Text
+  quantity    Int       @map("quantity")
+  unitPrice   Decimal   @map("unit_price") @db.Decimal(18, 4)
+  subtotal    Decimal   @map("subtotal") @db.Decimal(18, 4)
+
+  // Relations
+  quotation   Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+
+  @@index([quotationId])
+  @@map("quote_line_items")
 }
 

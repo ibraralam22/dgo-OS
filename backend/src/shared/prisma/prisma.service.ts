@@ -64,6 +64,7 @@ export class PrismaService
               'Contact',
               'Opportunity',
               'ProjectOnboarding',
+              'Quotation',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {

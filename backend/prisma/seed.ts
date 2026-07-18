@@ -22,6 +22,11 @@ async function main() {
     { code: 'clients:read', description: 'Read client profile information' },
     { code: 'clients:write', description: 'Modify client profiles' },
     { code: 'opportunities:read', description: 'Read sales opportunities' },
+    { code: 'opportunities:write', description: 'Modify sales opportunities' },
+    { code: 'opportunities:approve', description: 'Approve high-value sales opportunities' },
+    { code: 'quotations:read', description: 'Read client quotations and proposals' },
+    { code: 'quotations:write', description: 'Create and modify quotations' },
+    { code: 'quotations:approve', description: 'Approve quotations that exceed discount limits' },
     { code: 'billing:read', description: 'View billing invoices and payments' },
     { code: 'tickets:read', description: 'View service tickets' },
     { code: 'iam:read', description: 'View users and role assignments in tenant' },
@@ -49,12 +54,35 @@ async function main() {
     {
       name: 'TenantAdmin',
       description: 'Organization tenant administrator',
-      permissions: ['leads:read', 'leads:write', 'clients:read', 'clients:write', 'opportunities:read', 'billing:read', 'tickets:read', 'iam:read', 'iam:write'],
+      permissions: [
+        'leads:read',
+        'leads:write',
+        'clients:read',
+        'clients:write',
+        'opportunities:read',
+        'opportunities:write',
+        'opportunities:approve',
+        'quotations:read',
+        'quotations:write',
+        'quotations:approve',
+        'billing:read',
+        'tickets:read',
+        'iam:read',
+        'iam:write',
+      ],
     },
     {
       name: 'SalesRepresentative',
       description: 'Frontline sales agent',
-      permissions: ['leads:read', 'leads:write', 'clients:read', 'opportunities:read'],
+      permissions: [
+        'leads:read',
+        'leads:write',
+        'clients:read',
+        'opportunities:read',
+        'opportunities:write',
+        'quotations:read',
+        'quotations:write',
+      ],
     },
     {
       name: 'ClientContact',
@@ -176,6 +204,53 @@ async function main() {
       create: opp,
     });
   }
+
+  // 5. Create Default Quotations and Line Items
+  console.log('Locking in default quotations...');
+  const sampleQuotation = await prisma.quotation.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000005' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000005',
+      organizationId: org.id,
+      opportunityId: '00000000-0000-0000-0000-000000000003',
+      version: 1,
+      discountPercentage: new Prisma.Decimal(10.00),
+      taxPercentage: new Prisma.Decimal(5.00),
+      subtotal: new Prisma.Decimal(14000.00),
+      total: new Prisma.Decimal(13230.00), // (14000 * 0.9) * 1.05 = 12600 * 1.05 = 13230
+      status: 'DRAFT',
+      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+      requiresApproval: false,
+      approved: false,
+    },
+  });
+
+  // Seed sample line items
+  await prisma.quoteLineItem.deleteMany({
+    where: { quotationId: sampleQuotation.id },
+  });
+
+  await prisma.quoteLineItem.createMany({
+    data: [
+      {
+        quotationId: sampleQuotation.id,
+        itemName: 'Senior Backend Engineer Pod',
+        description: 'Dedicated senior developer support for backend scaling.',
+        quantity: 1,
+        unitPrice: new Prisma.Decimal(8000.00),
+        subtotal: new Prisma.Decimal(8000.00),
+      },
+      {
+        quotationId: sampleQuotation.id,
+        itemName: 'Full Stack Engineer Pod',
+        description: 'Dedicated developer support for visual design pages.',
+        quantity: 1,
+        unitPrice: new Prisma.Decimal(6000.00),
+        subtotal: new Prisma.Decimal(6000.00),
+      },
+    ],
+  });
 
   console.log('🌿 Seeding completed successfully!');
 }
