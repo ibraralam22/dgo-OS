@@ -30,8 +30,8 @@ export default function LoginPage() {
       login(response.user, response.accessToken, response.organizations);
       toast.success('Welcome back!');
       router.push('/dashboard');
-    } catch (err: unknown) {
-      toast.error(err, 'Invalid email or password.');
+    } catch {
+      // Error toast is fired by the API client interceptor — no duplicate needed
     } finally {
       setLoading(false);
     }

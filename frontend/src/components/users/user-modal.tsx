@@ -47,9 +47,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
       toast.success('User created successfully.');
       onSuccess();
     },
-    onError: (err: unknown) => {
-      toast.error(err, 'An error occurred. Please try again.');
-    },
   });
 
   // Edit profile mutation
@@ -59,9 +56,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
       toast.success('Profile updated successfully.');
       onSuccess();
     },
-    onError: (err: unknown) => {
-      toast.error(err, 'An error occurred.');
-    },
   });
 
   // Change role mutation
@@ -70,9 +64,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
     onSuccess: () => {
       toast.success('Role updated successfully.');
       onSuccess();
-    },
-    onError: (err: unknown) => {
-      toast.error(err, 'An error occurred.');
     },
   });
 

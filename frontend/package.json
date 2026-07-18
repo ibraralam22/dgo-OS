@@ -3,10 +3,21 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
+    "rf-next": "rm -rf .next",
     "dev": "next dev",
+    "dev:debug": "NODE_OPTIONS='--inspect' next dev",
     "build": "next build",
+    "build:analyze": "ANALYZE=true next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf .next out node_modules/.cache",
+    "clean:all": "rm -rf .next out node_modules node_modules/.cache && pnpm install",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "dev:https": "next dev --experimental-https",
+    "prepare": "husky"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.101.2",

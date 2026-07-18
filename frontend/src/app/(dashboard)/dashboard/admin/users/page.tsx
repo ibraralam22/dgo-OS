@@ -220,9 +220,6 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setConfirmAction(null);
     },
-    onError: (err: unknown) => {
-      toast.error(err, 'Action failed. Please try again.');
-    },
   });
 
   const updateRoleMutation = useMutation({
@@ -233,9 +230,6 @@ export default function UsersPage() {
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setRoleUser(null);
     },
-    onError: (err: unknown) => {
-      toast.error(err, 'Role update failed.');
-    },
   });
 
   const removeMutation = useMutation({
@@ -244,9 +238,6 @@ export default function UsersPage() {
       toast.success('User removed from organization.');
       queryClient.invalidateQueries({ queryKey: ['users'] });
       setConfirmAction(null);
-    },
-    onError: (err: unknown) => {
-      toast.error(err, 'Remove failed. Please try again.');
     },
   });
 
