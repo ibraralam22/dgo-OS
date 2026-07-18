@@ -31,6 +31,8 @@ async function main() {
     { code: 'tickets:read', description: 'View service tickets' },
     { code: 'iam:read', description: 'View users and role assignments in tenant' },
     { code: 'iam:write', description: 'Create, update, and assign roles to users in tenant' },
+    { code: 'projects:read', description: 'Read project records and milestones' },
+    { code: 'projects:write', description: 'Create and update projects and milestones' },
   ];
 
   console.log('Locking in permissions...');
@@ -69,6 +71,8 @@ async function main() {
         'tickets:read',
         'iam:read',
         'iam:write',
+        'projects:read',
+        'projects:write',
       ],
     },
     {
@@ -82,6 +86,7 @@ async function main() {
         'opportunities:write',
         'quotations:read',
         'quotations:write',
+        'projects:read',
       ],
     },
     {
@@ -251,6 +256,46 @@ async function main() {
       },
     ],
   });
+
+  // 6. Create Default Project Onboardings and Milestones
+  console.log('Locking in default project onboardings...');
+  const sampleProject = await prisma.projectOnboarding.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000006' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0000-000000000006',
+      organizationId: org.id,
+      opportunityId: '00000000-0000-0000-0000-000000000003',
+      name: 'ACME - 10 Java Devs Squad - Project Onboarding',
+      status: 'IN_PROGRESS',
+      templateType: 'STAFF_AUGMENTATION',
+      targetStartDate: new Date(Date.now() + 15 * 24 * 60 * 60 * 1000),
+    },
+  });
+
+  const milestonesList = [
+    { title: 'Kickoff Meeting Scheduled', completed: true, completedAt: new Date() },
+    { title: 'Contract Signed & Uploaded', completed: true, completedAt: new Date() },
+    { title: 'GitHub & Slack Handover', completed: false },
+    { title: 'First Month Invoice Sent', completed: false },
+  ];
+
+  await prisma.onboardingMilestone.deleteMany({
+    where: { projectOnboardingId: sampleProject.id },
+  });
+
+  for (const m of milestonesList) {
+    await prisma.onboardingMilestone.create({
+      data: {
+        organizationId: org.id,
+        projectOnboardingId: sampleProject.id,
+        title: m.title,
+        completed: m.completed,
+        completedAt: m.completedAt || null,
+        dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+      },
+    });
+  }
 
   console.log('🌿 Seeding completed successfully!');
 }

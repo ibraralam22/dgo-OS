@@ -14,6 +14,7 @@ import { LeadsModule } from './modules/leads/leads.module';
 import { ClientsModule } from './modules/clients/clients.module';
 import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
 import { QuotationsModule } from './modules/quotations/quotations.module';
+import { ProjectsModule } from './modules/projects/projects.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { QuotationsModule } from './modules/quotations/quotations.module';
     ClientsModule,
     OpportunitiesModule,
     QuotationsModule,
+    ProjectsModule,
   ],
   controllers: [AppController],
   providers: [

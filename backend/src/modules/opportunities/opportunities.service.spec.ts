@@ -18,6 +18,9 @@ const mockPrisma = {
   projectOnboarding: {
     create: jest.fn(),
   },
+  onboardingMilestone: {
+    createMany: jest.fn(),
+  },
   auditLog: {
     create: jest.fn(),
     findMany: jest.fn(),

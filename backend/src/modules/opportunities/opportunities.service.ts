@@ -305,6 +305,24 @@ export class OpportunitiesService {
           },
         });
         triggeredOnboardingId = onboarding.id;
+
+        // Auto-populate default onboarding checklist milestones
+        const defaultMilestones = [
+          'Kickoff Meeting Scheduled',
+          'Contract Signed & Uploaded',
+          'GitHub & Slack Handover',
+          'First Month Invoice Sent',
+        ];
+
+        await tx.onboardingMilestone.createMany({
+          data: defaultMilestones.map((title) => ({
+            organizationId: orgId,
+            projectOnboardingId: onboarding.id,
+            title,
+            completed: false,
+            dueDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+          })),
+        });
       }
 
       await tx.auditLog.create({

@@ -25,6 +25,7 @@ model Organization {
   contacts           Contact[]
   opportunities      Opportunity[]
   projectOnboardings ProjectOnboarding[]
+  onboardingMilestones OnboardingMilestone[]
   quotations         Quotation[]
 
   @@map("organizations")
@@ -51,6 +52,7 @@ model User {
   ownedLeads         Lead[]
   opportunities      Opportunity[]
   approvedQuotations Quotation[]        @relation("QuotationApproval")
+  managedProjects    ProjectOnboarding[] @relation(name: "ManagerProjects")
 
   @@map("users")
 }
@@ -325,25 +327,49 @@ model Opportunity {
 }
 
 model ProjectOnboarding {
-  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  organizationId  String           @db.Uuid
-  opportunityId   String           @db.Uuid
-  name            String           @db.VarChar(255)
-  status          String           @default("IN_PROGRESS") // IN_PROGRESS, SUSPENDED, COMPLETED
-  templateType    String           @db.VarChar(50) @default("STAFF_AUGMENTATION")
-  targetStartDate DateTime         @db.Timestamptz(6)
-  completedAt     DateTime?        @db.Timestamptz(6)
-  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
-  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
-  deletedAt       DateTime?        @db.Timestamptz(6)
+  id                String                 @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId    String                 @db.Uuid
+  opportunityId     String                 @db.Uuid
+  assignedManagerId String?                @db.Uuid
+  name              String                 @db.VarChar(255)
+  status            String                 @default("IN_PROGRESS") // IN_PROGRESS, SUSPENDED, COMPLETED
+  templateType      String                 @db.VarChar(50) @default("STAFF_AUGMENTATION")
+  targetStartDate   DateTime               @db.Timestamptz(6)
+  completedAt       DateTime?              @db.Timestamptz(6)
+  createdAt         DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(6)
+  deletedAt         DateTime?              @db.Timestamptz(6)
 
   // Relations
-  organization    Organization     @relation(fields: [organizationId], references: [id])
-  opportunity     Opportunity      @relation(fields: [opportunityId], references: [id])
+  organization      Organization           @relation(fields: [organizationId], references: [id])
+  opportunity       Opportunity            @relation(fields: [opportunityId], references: [id])
+  assignedManager   User?                  @relation(name: "ManagerProjects", fields: [assignedManagerId], references: [id])
+  milestones        OnboardingMilestone[]
 
   @@index([organizationId])
   @@index([opportunityId])
+  @@index([assignedManagerId])
   @@map("project_onboardings")
+}
+
+model OnboardingMilestone {
+  id                  String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId      String           @db.Uuid
+  projectOnboardingId String           @db.Uuid
+  title               String           @db.VarChar(255)
+  completed           Boolean          @default(false)
+  completedAt         DateTime?        @db.Timestamptz(6)
+  dueDate             DateTime?        @db.Timestamptz(6)
+  createdAt           DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt           DateTime         @updatedAt @db.Timestamptz(6)
+
+  // Relations
+  organization        Organization     @relation(fields: [organizationId], references: [id])
+  projectOnboarding   ProjectOnboarding @relation(fields: [projectOnboardingId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@index([projectOnboardingId])
+  @@map("onboarding_milestones")
 }
 
 enum QuotationStatus {
