@@ -1,8 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
 import { usersApi, UserListItem, CreateUserPayload } from '@services/users-api';
+import { rolesApi } from '@services/roles-api';
 import { Button } from '@components/ui/button';
 import { Input } from '@components/ui/input';
 import { Label } from '@components/ui/label';
@@ -18,12 +19,26 @@ interface UserModalProps {
   onSuccess: () => void;
 }
 
-const ROLES = ['TenantAdmin', 'SalesRepresentative', 'ClientContact'];
+// Fallback roles list in case API is loading or fails
+const FALLBACK_ROLES = ['TenantAdmin', 'SalesRepresentative', 'ClientContact'];
 
 export default function UserModal({ mode, user, onClose, onSuccess }: UserModalProps) {
   const isCreate = mode === 'create';
   const isEdit = mode === 'edit';
   const isRole = mode === 'role';
+
+  // Fetch dynamic roles list
+  const { data: rolesData } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => rolesApi.list(),
+  });
+
+  const assignableRoles = useMemo(() => {
+    if (!rolesData?.data) return FALLBACK_ROLES;
+    return rolesData.data
+      .filter((r) => r.name !== 'SuperAdmin')
+      .map((r) => r.name);
+  }, [rolesData]);
 
   // Form state
   const [email, setEmail] = useState('');
@@ -32,7 +47,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [roleName, setRoleName] = useState(user?.role.name ?? ROLES[0]);
+  const [roleName, setRoleName] = useState(user?.role.name ?? 'TenantAdmin');
 
   // Lock scroll when modal open
   useEffect(() => {
@@ -130,7 +145,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
                 disabled={isLoading}
                 className="h-9 w-full rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                {assignableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
               <p className="text-[11px] text-muted-foreground pl-1">
                 Current role: <span className="font-semibold text-foreground">{user?.role.name}</span>
@@ -204,7 +219,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
                       disabled={isLoading}
                       className="h-9 w-full rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
-                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      {assignableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
 

@@ -25,6 +25,7 @@ describe('UsersService', () => {
     },
     role: {
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
     },
     userSession: {
       updateMany: jest.fn(),
@@ -125,7 +126,7 @@ describe('UsersService', () => {
     };
 
     it('should create new user and assign to org', async () => {
-      (prisma.role.findUnique as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
+      (prisma.role.findFirst as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
       (prisma.user.findFirst as jest.Mock).mockResolvedValue(null);
       (bcrypt.hash as jest.Mock).mockResolvedValue('hashed-pw');
       (prisma.user.create as jest.Mock).mockResolvedValue({ id: 'u-new', email: 'new@dgo.com', firstName: 'New', lastName: 'Hire', status: 'active' });
@@ -138,7 +139,7 @@ describe('UsersService', () => {
     });
 
     it('should assign existing user to org if not already a member', async () => {
-      (prisma.role.findUnique as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
+      (prisma.role.findFirst as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
       (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'u-existing', email: 'new@dgo.com', firstName: 'New', lastName: 'Hire', status: 'active' });
       (prisma.userOrganization.findFirst as jest.Mock).mockResolvedValue(null);
       (prisma.userOrganization.create as jest.Mock).mockResolvedValue({});
@@ -151,7 +152,7 @@ describe('UsersService', () => {
     });
 
     it('should throw BadRequestException if user already in org', async () => {
-      (prisma.role.findUnique as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
+      (prisma.role.findFirst as jest.Mock).mockResolvedValue({ id: 'r1', name: 'SalesRepresentative' });
       (prisma.user.findFirst as jest.Mock).mockResolvedValue({ id: 'u-existing' });
       (prisma.userOrganization.findFirst as jest.Mock).mockResolvedValue({ userId: 'u-existing', organizationId: 'org-1' });
 
@@ -159,7 +160,7 @@ describe('UsersService', () => {
     });
 
     it('should throw BadRequestException if role is invalid', async () => {
-      (prisma.role.findUnique as jest.Mock).mockResolvedValue(null);
+      (prisma.role.findFirst as jest.Mock).mockResolvedValue(null);
       await expect(service.createUser({ ...dto, roleName: 'FakeRole' }, 'org-1', 'admin-1')).rejects.toThrow(BadRequestException);
     });
   });

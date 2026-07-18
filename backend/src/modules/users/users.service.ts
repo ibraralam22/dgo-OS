@@ -168,9 +168,16 @@ export class UsersService {
     actorId: string,
     actorIp?: string,
   ) {
-    // Find the role record
-    const role = await this.prisma.role.findUnique({
-      where: { name: dto.roleName },
+    // Find the role record (either system role or tenant-specific custom role)
+    const role = await this.prisma.role.findFirst({
+      where: {
+        name: dto.roleName,
+        OR: [
+          { organizationId: null },
+          { organizationId },
+        ],
+        deletedAt: null,
+      },
     });
     if (!role) {
       throw new BadRequestException(`Role "${dto.roleName}" does not exist`);
@@ -299,8 +306,15 @@ export class UsersService {
     actorId: string,
     actorIp?: string,
   ) {
-    const role = await this.prisma.role.findUnique({
-      where: { name: dto.roleName },
+    const role = await this.prisma.role.findFirst({
+      where: {
+        name: dto.roleName,
+        OR: [
+          { organizationId: null },
+          { organizationId },
+        ],
+        deletedAt: null,
+      },
     });
     if (!role) {
       throw new BadRequestException(`Role "${dto.roleName}" does not exist`);
