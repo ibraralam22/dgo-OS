@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useRouter } from 'next/navigation';
 import { clientsApi, ContactListItem, HierarchyNode } from '@services/clients-api';
+import { systemApi } from '@services/system-api';
 import { toast } from '@utils/toast';
 import {
   Building2,
@@ -31,30 +32,39 @@ import ContactModal from '@components/clients/contact-modal';
 // Recursive Hierarchy Tree Node Component
 function HierarchyTreeNodeComponent({ node, activeId }: { node: HierarchyNode; activeId: string }) {
   const isActive = node.id === activeId;
+  const hasChildren = node.subsidiaries && node.subsidiaries.length > 0;
   return (
-    <div className="flex flex-col gap-2 pl-4 border-l border-border/20 mt-2">
-      <div className={`flex items-center gap-2 p-2 rounded-lg text-xs font-semibold w-fit border ${
-        isActive 
-          ? 'bg-primary/10 border-primary/30 text-primary' 
-          : 'bg-card/45 border-border/10 text-foreground/80 hover:bg-accent/10 transition-colors'
-      }`}>
+    <li
+      role="treeitem"
+      aria-selected={isActive}
+      aria-expanded={hasChildren ? true : undefined}
+      className="flex flex-col gap-2 pl-4 border-l border-border/20 mt-2 list-none"
+    >
+      <div
+        tabIndex={0}
+        className={`flex items-center gap-2 p-2 rounded-lg text-xs font-semibold w-fit border ${
+          isActive
+            ? 'bg-primary/10 border-primary/30 text-primary'
+            : 'bg-card/45 border-border/10 text-foreground/80 hover:bg-accent/10 transition-colors'
+        }`}
+      >
         <Building2 className="h-3.5 w-3.5" />
         {isActive ? (
           <span>{node.name} (Active Profile)</span>
         ) : (
-          <a href={`/dashboard/clients/${node.id}`} className="hover:underline">
+          <a href={`/dashboard/clients/${node.id}`} className="hover:underline focus:outline-none">
             {node.name} ({node.domain})
           </a>
         )}
       </div>
-      {node.subsidiaries && node.subsidiaries.length > 0 && (
-        <div className="flex flex-col gap-1">
+      {hasChildren && (
+        <ul role="group" className="flex flex-col gap-1 list-none p-0 m-0">
           {node.subsidiaries.map((child) => (
             <HierarchyTreeNodeComponent key={child.id} node={child} activeId={activeId} />
           ))}
-        </div>
+        </ul>
       )}
-    </div>
+    </li>
   );
 }
 
@@ -88,22 +98,9 @@ export default function ClientDetailPage() {
   });
 
   // 3. Fetch audit logs related to this client profile
-  // Note: Standard API handles log filtering. Since we have standard log listings, we can retrieve them here.
   const { data: logsResponse } = useQuery({
     queryKey: ['account-logs-list', id],
-    queryFn: async () => {
-      // Fetching mock or matching audit logs for this resourceId
-      // Return a basic array if no specific endpoint exists or filter in-memory
-      const res = await fetch(`/api/proxy/audit-logs?resourceId=${id}`, {
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem('token')}`,
-        },
-      });
-      if (res.ok) {
-        return res.json();
-      }
-      return { data: [] };
-    },
+    queryFn: () => systemApi.getAuditLogs({ resourceId: id }),
     enabled: activeTab === 'history',
   });
 
@@ -364,7 +361,9 @@ export default function ClientDetailPage() {
               </div>
             ) : hierarchyResponse?.hierarchy ? (
               <div className="pr-2 py-2 max-h-[300px] overflow-y-auto">
-                <HierarchyTreeNodeComponent node={hierarchyResponse.hierarchy} activeId={id} />
+                <ul role="tree" aria-label="Organizational Hierarchy Tree" className="p-0 m-0 list-none">
+                  <HierarchyTreeNodeComponent node={hierarchyResponse.hierarchy} activeId={id} />
+                </ul>
               </div>
             ) : (
               <div className="text-xs text-muted-foreground/60 py-6 text-center border border-dashed border-border/30 rounded-xl">

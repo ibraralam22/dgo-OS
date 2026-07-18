@@ -55,7 +55,16 @@ export class PrismaService
             const tenantId = requestContextService.getTenantId();
 
             // Set of models that enforce row-level organization filters
-            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role', 'Lead', 'Account', 'Contact'];
+            const tenantBoundModels = [
+              'AuditLog',
+              'UserOrganization',
+              'Role',
+              'Lead',
+              'Account',
+              'Contact',
+              'Opportunity',
+              'ProjectOnboarding',
+            ];
 
             if (tenantId && tenantBoundModels.includes(model)) {
               const queryArgs = (args || {}) as any;

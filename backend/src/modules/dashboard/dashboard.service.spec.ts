@@ -9,6 +9,12 @@ const mockPrisma = {
   auditLog: {
     findMany: jest.fn(),
   },
+  opportunity: {
+    findMany: jest.fn().mockResolvedValue([]),
+  },
+  lead: {
+    count: jest.fn().mockResolvedValue(0),
+  },
 };
 
 describe('DashboardService', () => {

@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
 import * as bcrypt from 'bcrypt';
@@ -116,6 +116,66 @@ async function main() {
       status: 'active',
     },
   });
+
+  // 4. Create Default Account & Opportunities
+  console.log('Locking in default account...');
+  const account = await prisma.account.upsert({
+    where: { id: '00000000-0000-0000-0000-000000000002' },
+    update: {
+      name: 'Acme Corporation',
+      domain: 'acme.com',
+      billingCountry: 'United States',
+      organizationId: org.id,
+    },
+    create: {
+      id: '00000000-0000-0000-0000-000000000002',
+      name: 'Acme Corporation',
+      domain: 'acme.com',
+      billingCountry: 'United States',
+      organizationId: org.id,
+    },
+  });
+
+  console.log('Locking in default opportunities...');
+  const opportunities = [
+    {
+      id: '00000000-0000-0000-0000-000000000003',
+      name: 'ACME - 10 Java Devs Squad',
+      stage: 'DISCOVERY' as const,
+      amount: new Prisma.Decimal(120000.00),
+      probability: 10,
+      closeDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000), // 30 days in future
+      description: 'Long-term staffing agreement for backend development squad.',
+      organizationId: org.id,
+      accountId: account.id,
+    },
+    {
+      id: '00000000-0000-0000-0000-000000000004',
+      name: 'Globex Corp - Cloud Migration',
+      stage: 'PROPOSAL' as const,
+      amount: new Prisma.Decimal(450000.00),
+      probability: 40,
+      closeDate: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), // 60 days in future
+      description: 'Full AWS cloud migration project with 5 DevOps specialists.',
+      organizationId: org.id,
+      accountId: account.id,
+    },
+  ];
+
+  for (const opp of opportunities) {
+    await prisma.opportunity.upsert({
+      where: { id: opp.id },
+      update: {
+        name: opp.name,
+        stage: opp.stage,
+        amount: opp.amount,
+        probability: opp.probability,
+        closeDate: opp.closeDate,
+        description: opp.description,
+      },
+      create: opp,
+    });
+  }
 
   console.log('🌿 Seeding completed successfully!');
 }

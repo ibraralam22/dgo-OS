@@ -17,12 +17,14 @@ model Organization {
   deletedAt         DateTime?          @db.Timestamptz(6)
   
   // Relations
-  userOrganizations UserOrganization[]
-  auditLogs         AuditLog[]
-  roles             Role[]
-  leads             Lead[]
-  accounts          Account[]
-  contacts          Contact[]
+  userOrganizations  UserOrganization[]
+  auditLogs          AuditLog[]
+  roles              Role[]
+  leads              Lead[]
+  accounts           Account[]
+  contacts           Contact[]
+  opportunities      Opportunity[]
+  projectOnboardings ProjectOnboarding[]
 
   @@map("organizations")
 }
@@ -46,6 +48,7 @@ model User {
   userSessions      UserSession[]
   auditLogs         AuditLog[]
   ownedLeads        Lead[]
+  opportunities     Opportunity[]
 
   @@map("users")
 }
@@ -240,6 +243,7 @@ model Account {
   parentAccount   Account?       @relation("AccountHierarchy", fields: [parentAccountId], references: [id], onDelete: Restrict)
   subsidiaries    Account[]      @relation("AccountHierarchy")
   contacts        Contact[]
+  opportunities   Opportunity[]
 
   @@index([organizationId])
   @@index([parentAccountId])
@@ -273,5 +277,69 @@ model Contact {
   @@index([organizationId])
   @@index([accountId])
   @@map("contacts")
+}
+
+enum OpportunityStage {
+  DISCOVERY
+  PROPOSAL
+  NEGOTIATION
+  CLOSED_WON
+  CLOSED_LOST
+}
+
+model Opportunity {
+  id               String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String            @db.Uuid
+  accountId        String            @db.Uuid
+  ownerId          String?           @db.Uuid
+  name             String            @db.VarChar(255)
+  stage            OpportunityStage  @default(DISCOVERY)
+  amount           Decimal           @db.Decimal(18, 2)
+  probability      Int               @default(10) // 10, 40, 70, 100, 0
+  closeDate        DateTime          @db.Timestamptz(6)
+  description      String?           @db.Text
+  lossReason       String?           @db.Text
+  competitorLostTo String?           @db.VarChar(255)
+  contractUrl      String?           @db.Text
+  requiresApproval Boolean           @default(false)
+  approved         Boolean           @default(false)
+  createdAt        DateTime          @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(6)
+  deletedAt        DateTime?         @db.Timestamptz(6)
+  createdBy        String?           @db.Uuid
+  updatedBy        String?           @db.Uuid
+
+  // Relations
+  organization     Organization      @relation(fields: [organizationId], references: [id])
+  account          Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  owner            User?             @relation(fields: [ownerId], references: [id])
+  onboardings      ProjectOnboarding[]
+
+  @@index([organizationId])
+  @@index([accountId])
+  @@index([stage])
+  @@map("opportunities")
+}
+
+model ProjectOnboarding {
+  id              String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String           @db.Uuid
+  opportunityId   String           @db.Uuid
+  name            String           @db.VarChar(255)
+  status          String           @default("IN_PROGRESS") // IN_PROGRESS, SUSPENDED, COMPLETED
+  templateType    String           @db.VarChar(50) @default("STAFF_AUGMENTATION")
+  targetStartDate DateTime         @db.Timestamptz(6)
+  completedAt     DateTime?        @db.Timestamptz(6)
+  createdAt       DateTime         @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime         @updatedAt @db.Timestamptz(6)
+  deletedAt       DateTime?        @db.Timestamptz(6)
+
+  // Relations
+  organization    Organization     @relation(fields: [organizationId], references: [id])
+  opportunity     Opportunity      @relation(fields: [opportunityId], references: [id])
+
+  @@index([organizationId])
+  @@index([opportunityId])
+  @@map("project_onboardings")
 }
 

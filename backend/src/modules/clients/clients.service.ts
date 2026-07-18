@@ -179,93 +179,98 @@ export class ClientsService {
 
   // Helper to build hierarchy and check circular reference
   private async checkCircularHierarchy(accountId: string, newParentId: string, orgId: string): Promise<boolean> {
-    let currentParentId: string | null = newParentId;
+    // Single recursive CTE query to get all ancestors of newParentId in one database roundtrip
+    const ancestors = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, "parentAccountId"
+        FROM accounts
+        WHERE id = ${newParentId}::uuid AND "organizationId" = ${orgId}::uuid AND "deletedAt" IS NULL
+        
+        UNION ALL
+        
+        SELECT a.id, a."parentAccountId"
+        FROM accounts a
+        INNER JOIN ancestors an ON a.id = an."parentAccountId"
+        WHERE a."organizationId" = ${orgId}::uuid AND a."deletedAt" IS NULL
+      )
+      SELECT id FROM ancestors;
+    `;
 
-    while (currentParentId) {
-      if (currentParentId === accountId) {
-        return true;
-      }
-      const parentNode: { parentAccountId: string | null } | null = await this.prisma.account.findFirst({
-        where: { id: currentParentId, organizationId: orgId, deletedAt: null },
-        select: { parentAccountId: true },
-      });
-      currentParentId = parentNode ? parentNode.parentAccountId : null;
-    }
-
-    return false;
+    return ancestors.some((anc) => anc.id === accountId);
   }
 
-  // Get Recursive Hierarchy Tree (Optimized to avoid loading all tenant accounts)
+  // Get Recursive Hierarchy Tree (Optimized using SQL CTEs to avoid N+1 queries and full table scans)
   async getAccountHierarchy(id: string, orgId: string) {
-    // 1. Walk up to the root parent account
-    let rootId = id;
-    let parentNode: { parentAccountId: string | null } | null = await this.prisma.account.findFirst({
-      where: { id: rootId, organizationId: orgId, deletedAt: null },
-      select: { parentAccountId: true },
-    });
+    // 1. Trace the parent chain up to find the ultimate root parent node in a single DB request
+    const rootSearch = await this.prisma.$queryRaw<Array<{ id: string }>>`
+      WITH RECURSIVE ancestors AS (
+        SELECT id, "parentAccountId", 1 as depth
+        FROM accounts
+        WHERE id = ${id}::uuid AND "organizationId" = ${orgId}::uuid AND "deletedAt" IS NULL
+        
+        UNION ALL
+        
+        SELECT a.id, a."parentAccountId", an.depth + 1
+        FROM accounts a
+        INNER JOIN ancestors an ON a.id = an."parentAccountId"
+        WHERE a."organizationId" = ${orgId}::uuid AND a."deletedAt" IS NULL
+      )
+      SELECT id FROM ancestors ORDER BY depth DESC LIMIT 1;
+    `;
 
-    let depth = 0;
-    while (parentNode?.parentAccountId && depth < 10) {
-      rootId = parentNode.parentAccountId;
-      parentNode = await this.prisma.account.findFirst({
-        where: { id: rootId, organizationId: orgId, deletedAt: null },
-        select: { parentAccountId: true },
-      });
-      depth++;
-    }
-
-    // 2. Fetch the hierarchy tree starting from the root node down to 4 nested subsidiary levels
-    const rootTree = await this.prisma.account.findFirst({
-      where: { id: rootId, organizationId: orgId, deletedAt: null },
-      select: {
-        id: true,
-        name: true,
-        domain: true,
-        parentAccountId: true,
-        subsidiaries: {
-          where: { deletedAt: null },
-          select: {
-            id: true,
-            name: true,
-            domain: true,
-            parentAccountId: true,
-            subsidiaries: {
-              where: { deletedAt: null },
-              select: {
-                id: true,
-                name: true,
-                domain: true,
-                parentAccountId: true,
-                subsidiaries: {
-                  where: { deletedAt: null },
-                  select: {
-                    id: true,
-                    name: true,
-                    domain: true,
-                    parentAccountId: true,
-                    subsidiaries: {
-                      where: { deletedAt: null },
-                      select: {
-                        id: true,
-                        name: true,
-                        domain: true,
-                        parentAccountId: true,
-                      },
-                    },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    });
-
-    if (!rootTree) {
+    if (rootSearch.length === 0) {
       throw new NotFoundException(`Account ${id} not found`);
     }
 
-    return rootTree;
+    const rootId = rootSearch[0].id;
+
+    // 2. Fetch the complete downward tree starting from the rootId to unlimited depth
+    const flatTree = await this.prisma.$queryRaw<Array<{ id: string; name: string; domain: string; parentAccountId: string | null }>>`
+      WITH RECURSIVE descendants AS (
+        SELECT id, name, domain, "parentAccountId"
+        FROM accounts
+        WHERE id = ${rootId}::uuid AND "organizationId" = ${orgId}::uuid AND "deletedAt" IS NULL
+        
+        UNION ALL
+        
+        SELECT a.id, a.name, a.domain, a."parentAccountId"
+        FROM accounts a
+        INNER JOIN descendants d ON a."parentAccountId" = d.id
+        WHERE a."organizationId" = ${orgId}::uuid AND a."deletedAt" IS NULL
+      )
+      SELECT id, name, domain, "parentAccountId" FROM descendants;
+    `;
+
+    if (flatTree.length === 0) {
+      throw new NotFoundException(`Account tree not found`);
+    }
+
+    // 3. Rebuild the hierarchical nested tree structure in-memory in O(N) linear time
+    const nodesMap = new Map<string, any>();
+    flatTree.forEach((row) => {
+      nodesMap.set(row.id, {
+        id: row.id,
+        name: row.name,
+        domain: row.domain,
+        parentAccountId: row.parentAccountId,
+        subsidiaries: [],
+      });
+    });
+
+    let rootNode: any = null;
+    flatTree.forEach((row) => {
+      const node = nodesMap.get(row.id);
+      if (row.parentAccountId && nodesMap.has(row.parentAccountId)) {
+        const parent = nodesMap.get(row.parentAccountId);
+        parent.subsidiaries.push(node);
+      } else {
+        if (row.id === rootId) {
+          rootNode = node;
+        }
+      }
+    });
+
+    return rootNode || nodesMap.get(rootId);
   }
 
   // -------------------------------------------------------------
