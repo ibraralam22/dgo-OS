@@ -40,9 +40,6 @@ export class CreateUserDto {
   @ApiProperty({ example: 'SalesRepresentative' })
   @IsString()
   @IsNotEmpty()
-  @IsIn(['SuperAdmin', 'TenantAdmin', 'SalesRepresentative', 'ClientContact'], {
-    message: 'roleName must be a valid system role',
-  })
   roleName!: string;
 
   @ApiPropertyOptional({ example: 'active', default: 'active' })

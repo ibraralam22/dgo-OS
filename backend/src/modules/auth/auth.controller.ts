@@ -8,9 +8,11 @@ import {
   HttpStatus,
   BadRequestException,
 } from '@nestjs/common';
+import { Throttle } from '@nestjs/throttler';
 import * as express from 'express';
 import { AuthService, AuthSessionResponse } from './auth.service';
 import { LoginDto } from './dto/login.dto';
+import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
 import { Public } from '../../common/decorators/public.decorator';
 import { ActiveUser } from '../../common/decorators/user.decorator';
 import {
@@ -46,6 +48,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 5, ttl: 15000 } })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login user with email and password credentials' })
@@ -64,8 +67,9 @@ export class AuthController {
     );
     const ip = req.ip;
     const ua = req.headers['user-agent'];
+    const requestedOrgId = req.headers['x-tenant-id'] as string | undefined;
 
-    const result = await this.authService.login(user, ip, ua);
+    const result = await this.authService.login(user, ip, ua, requestedOrgId);
 
     this.setRefreshCookie(res, result.refreshToken);
     const responsePayload = { ...result } as Partial<AuthSessionResponse>;
@@ -74,6 +78,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle({ default: { limit: 10, ttl: 15000 } })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -91,8 +96,9 @@ export class AuthController {
 
     const ip = req.ip;
     const ua = req.headers['user-agent'];
+    const requestedOrgId = req.headers['x-tenant-id'] as string | undefined;
 
-    const result = await this.authService.rotateSession(token, ip, ua);
+    const result = await this.authService.rotateSession(token, ip, ua, requestedOrgId);
 
     this.setRefreshCookie(res, result.refreshToken);
     const responsePayload = { ...result } as Partial<AuthSessionResponse>;
@@ -116,5 +122,15 @@ export class AuthController {
     }
     this.clearRefreshCookie(res);
     return { success: true, message: 'Logged out successfully' };
+  }
+
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60000 } })
+  @Post('register-superadmin')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Register a new SuperAdmin user manually using a registration secret key' })
+  @ApiResponse({ status: 201, description: 'SuperAdmin created successfully' })
+  async registerSuperAdmin(@Body() dto: RegisterSuperAdminDto) {
+    return this.authService.registerSuperAdmin(dto);
   }
 }

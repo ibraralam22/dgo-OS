@@ -9,6 +9,8 @@ import { ConfigService } from '@nestjs/config';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
+import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 export interface AuthSessionResponse {
   accessToken: string;
@@ -34,6 +36,7 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly requestContextService: RequestContextService,
   ) {}
 
   /**
@@ -80,8 +83,9 @@ export class AuthService {
     user: { id: string },
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
   ): Promise<AuthSessionResponse> {
-    return this.createSession(user.id, uuidv4(), ipAddress, userAgent);
+    return this.createSession(user.id, uuidv4(), ipAddress, userAgent, requestedOrgId);
   }
 
   /**
@@ -92,8 +96,12 @@ export class AuthService {
     tokenFamilyId: string,
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
+    tx?: any,
   ): Promise<AuthSessionResponse> {
-    const userOrgs = await this.prisma.userOrganization.findMany({
+    const db = tx || this.prisma;
+
+    const userOrgs = await db.userOrganization.findMany({
       where: { userId, deletedAt: null },
       include: {
         organization: true,
@@ -113,14 +121,20 @@ export class AuthService {
       );
     }
 
-    // Default active context to the first mapped organization
-    const activeOrgMapping = userOrgs[0];
+    // Support tenant switching: find the requested organization if user belongs to it, otherwise default to first
+    let activeOrgMapping = userOrgs.find(
+      (uo: any) => uo.organizationId === requestedOrgId,
+    );
+    if (!activeOrgMapping) {
+      activeOrgMapping = userOrgs[0];
+    }
+
     const roleName = activeOrgMapping.role.name;
     const permissions = activeOrgMapping.role.rolePermissions.map(
-      (rp) => rp.permission.code,
+      (rp: any) => rp.permission.code,
     );
 
-    const userRecord = await this.prisma.user.findUnique({
+    const userRecord = await db.user.findUnique({
       where: { id: userId },
     });
     if (!userRecord) {
@@ -144,7 +158,7 @@ export class AuthService {
     const refreshTokenHash = this.hashToken(rawRefreshToken);
 
     // Store the refresh token session structure in PostgreSQL database
-    await this.prisma.userSession.create({
+    await db.userSession.create({
       data: {
         userId,
         tokenFamilyId,
@@ -156,7 +170,7 @@ export class AuthService {
     });
 
     // Populate user profile info package
-    const organizations = userOrgs.map((uo) => ({
+    const organizations = userOrgs.map((uo: any) => ({
       id: uo.organization.id,
       name: uo.organization.name,
       subdomain: uo.organization.subdomain,
@@ -184,6 +198,7 @@ export class AuthService {
     refreshToken: string,
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
   ): Promise<AuthSessionResponse> {
     const hash = this.hashToken(refreshToken);
 
@@ -192,33 +207,32 @@ export class AuthService {
       include: { user: true },
     });
 
-    // Reuse detection: If session token does not exist but refresh token is valid in payload history,
-    // it could indicate a token compromise. For safety, we would locate the family scope.
-    // However, if we locate a session marked as revoked, we terminate all active tokens in the family!
     if (!session) {
       throw new UnauthorizedException('Token rotation session not found');
     }
 
     if (session.isRevoked || session.expiresAt < new Date()) {
-      // Revoke the entire token family (compromised reuse detected)
-      await this.prisma.userSession.updateMany({
-        where: { tokenFamilyId: session.tokenFamilyId },
-        data: { isRevoked: true },
-      });
+      // Revoke the entire token family atomically inside a Prisma transaction
+      await this.prisma.$transaction(async (tx) => {
+        await tx.userSession.updateMany({
+          where: { tokenFamilyId: session.tokenFamilyId },
+          data: { isRevoked: true },
+        });
 
-      // Log high-priority security alert to DB
-      await this.prisma.auditLog.create({
-        data: {
-          userId: session.userId,
-          action: 'auth.compromise_detected',
-          resourceName: 'session',
-          ipAddress,
-          payloadBefore: {
-            sessionId: session.id,
-            tokenFamilyId: session.tokenFamilyId,
+        // Log high-priority security alert to DB
+        await tx.auditLog.create({
+          data: {
+            userId: session.userId,
+            action: 'auth.compromise_detected',
+            resourceName: 'session',
+            ipAddress,
+            payloadBefore: {
+              sessionId: session.id,
+              tokenFamilyId: session.tokenFamilyId,
+            },
+            payloadAfter: { action: 'revoked_family' },
           },
-          payloadAfter: { action: 'revoked_family' },
-        },
+        });
       });
 
       throw new UnauthorizedException(
@@ -226,19 +240,24 @@ export class AuthService {
       );
     }
 
-    // Revoke the old session token
-    await this.prisma.userSession.update({
-      where: { id: session.id },
-      data: { isRevoked: true },
-    });
+    // Standard session rotation wrapped atomically inside a Prisma transaction
+    return this.prisma.$transaction(async (tx) => {
+      // Revoke the old session token
+      await tx.userSession.update({
+        where: { id: session.id },
+        data: { isRevoked: true },
+      });
 
-    // Generate new rotated session within the same family scope
-    return this.createSession(
-      session.userId,
-      session.tokenFamilyId,
-      ipAddress,
-      userAgent,
-    );
+      // Generate new rotated session within the same family scope using transactional DB delegate
+      return this.createSession(
+        session.userId,
+        session.tokenFamilyId,
+        ipAddress,
+        userAgent,
+        requestedOrgId,
+        tx,
+      );
+    });
   }
 
   /**
@@ -249,6 +268,80 @@ export class AuthService {
     await this.prisma.userSession.updateMany({
       where: { refreshTokenHash: hash },
       data: { isRevoked: true },
+    });
+  }
+
+  /**
+   * Registers a new SuperAdmin user given a correct secret key.
+   */
+  async registerSuperAdmin(dto: RegisterSuperAdminDto) {
+    const configSecret = this.configService.get<string>('SUPERADMIN_REGISTRATION_SECRET');
+    if (!configSecret) {
+      throw new BadRequestException('SUPERADMIN_REGISTRATION_SECRET is not configured on the server');
+    }
+
+    if (dto.secretKey !== configSecret) {
+      throw new UnauthorizedException('Invalid registration secret key');
+    }
+
+    // Check if user already exists
+    const existingUser = await this.prisma.user.findFirst({
+      where: { email: dto.email, deletedAt: null },
+    });
+    if (existingUser) {
+      throw new BadRequestException('User with this email already exists');
+    }
+
+    // Find the SuperAdmin role
+    const superAdminRole = await this.prisma.role.findFirst({
+      where: { name: 'SuperAdmin' },
+    });
+    if (!superAdminRole) {
+      throw new BadRequestException('SuperAdmin role not found. Please run database seeding first.');
+    }
+
+    // Find the default organization (first active org)
+    const defaultOrg = await this.prisma.organization.findFirst({
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!defaultOrg) {
+      throw new BadRequestException('No organizations found. Please run database seeding first.');
+    }
+
+    // Clear tenantId context in case the client sent a spoofed header on this public route
+    this.requestContextService.setTenantId('');
+
+    // Hash the password
+    const passwordHash = await bcrypt.hash(dto.password, 10);
+
+    // Create the User and UserOrganization entry in a transaction
+    return this.prisma.$transaction(async (tx) => {
+      const newUser = await tx.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          firstName: dto.firstName,
+          lastName: dto.lastName,
+          status: 'active',
+        },
+      });
+
+      await tx.userOrganization.create({
+        data: {
+          userId: newUser.id,
+          organizationId: defaultOrg.id,
+          roleId: superAdminRole.id,
+        },
+      });
+
+      return {
+        id: newUser.id,
+        email: newUser.email,
+        firstName: newUser.firstName,
+        lastName: newUser.lastName,
+        organizationName: defaultOrg.name,
+      };
     });
   }
 }

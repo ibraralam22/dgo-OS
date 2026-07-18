@@ -22,11 +22,24 @@ interface AuthState {
   activeOrganizationId: string | null;
   organizations: OrganizationInfo[];
   isAuthenticated: boolean;
-  
+
   // Actions
   login: (user: UserProfile, token: string, orgs: OrganizationInfo[]) => void;
   logout: () => void;
   setActiveOrganizationId: (orgId: string | null) => void;
+}
+
+/** Set a lightweight cookie readable by Next.js Edge Middleware. */
+function setAuthCookie() {
+  if (typeof document === 'undefined') return;
+  // SameSite=Lax, no HttpOnly (must be readable by middleware without secret)
+  document.cookie = 'auth_present=1; path=/; SameSite=Lax; max-age=86400';
+}
+
+/** Clear the auth presence cookie on logout. */
+function clearAuthCookie() {
+  if (typeof document === 'undefined') return;
+  document.cookie = 'auth_present=; path=/; SameSite=Lax; max-age=0';
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -39,7 +52,6 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
 
       login: (user, token, orgs) => {
-        // Automatically default active tenant selection to the first organization registered if present
         const defaultOrgId = orgs.length > 0 ? orgs[0].id : null;
         set({
           user,
@@ -48,6 +60,8 @@ export const useAuthStore = create<AuthState>()(
           activeOrganizationId: defaultOrgId,
           isAuthenticated: true,
         });
+        // Signal to Edge Middleware that a session is active
+        setAuthCookie();
       },
 
       logout: () => {
@@ -58,6 +72,8 @@ export const useAuthStore = create<AuthState>()(
           organizations: [],
           isAuthenticated: false,
         });
+        // Remove the middleware signal cookie
+        clearAuthCookie();
       },
 
       setActiveOrganizationId: (orgId) => {
@@ -65,7 +81,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'dgo_auth_session', // Key name in localStorage
+      name: 'dgo_auth_session', // Key in localStorage
     },
   ),
 );

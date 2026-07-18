@@ -2,8 +2,10 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, UserListItem, CreateUserPayload } from '../../../../services/users-api';
-import { useAuthStore } from '../../../../store/auth-store';
+import { usersApi, UserListItem } from '@services/users-api';
+import { toast } from '@utils/toast';
+import { useAuthStore } from '@store/auth-store';
+import { useDebounce } from '@hooks/use-debounce';
 import {
   Users,
   Plus,
@@ -18,10 +20,10 @@ import {
   Edit,
   Trash2,
 } from 'lucide-react';
-import { Button } from '../../../../components/ui/button';
-import { Input } from '../../../../components/ui/input';
-import { cn } from '../../../../utils/cn';
-import UserModal from '../../../../components/users/user-modal';
+import { Button } from '@components/ui/button';
+import { Input } from '@components/ui/input';
+import { cn } from '@utils/cn';
+import UserModal from '@components/users/user-modal';
 
 // ─── Status badge component ───────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {
@@ -179,14 +181,11 @@ export default function UsersPage() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  const [debouncedSearch, setDebouncedSearch] = useState('');
-  const debounceRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const debouncedSearch = useDebounce(search, 300);
 
   const handleSearchChange = (val: string) => {
     setSearch(val);
     setPage(1);
-    if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => setDebouncedSearch(val), 300);
   };
 
   // Modal state
@@ -213,18 +212,22 @@ export default function UsersPage() {
   const updateUserMutation = useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Record<string, string> }) =>
       usersApi.update(id, payload),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setConfirmAction(null); },
+    onSuccess: (_data, vars) => {
+      const action = vars.payload.status === 'suspended' ? 'suspended' : 'activated';
+      toast.success(`User ${action} successfully.`);
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setConfirmAction(null);
+    },
   });
 
-  const updateRoleMutation = useMutation({
-    mutationFn: ({ id, roleName }: { id: string; roleName: string }) =>
-      usersApi.updateRole(id, roleName),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setRoleUser(null); },
-  });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['users'] }); setConfirmAction(null); },
+    onSuccess: () => {
+      toast.success('User removed from organization.');
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setConfirmAction(null);
+    },
   });
 
   const users = data?.data ?? [];
@@ -270,6 +273,7 @@ export default function UsersPage() {
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search name or email…"
             className="pl-9 h-9 text-sm"
+            aria-label="Search users by name or email"
           />
         </div>
 
@@ -278,6 +282,7 @@ export default function UsersPage() {
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          aria-label="Filter by Status"
         >
           <option value="">All Statuses</option>
           <option value="active">Active</option>
@@ -290,6 +295,7 @@ export default function UsersPage() {
           value={roleFilter}
           onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          aria-label="Filter by Role"
         >
           <option value="">All Roles</option>
           {roles.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -396,6 +402,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={meta.page <= 1}
                 className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -406,6 +413,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                 disabled={meta.page >= meta.totalPages}
                 className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

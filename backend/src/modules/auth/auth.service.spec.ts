@@ -4,6 +4,7 @@ import { PrismaService } from '../../shared/prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
+import { RequestContextService } from '../../common/context/request-context.service';
 import * as bcrypt from 'bcrypt';
 jest.mock('bcrypt');
 
@@ -30,6 +31,7 @@ describe('AuthService', () => {
     auditLog: {
       create: jest.fn(),
     },
+    $transaction: jest.fn((cb) => cb(mockPrisma)),
   };
 
   const mockJwt = {
@@ -44,6 +46,11 @@ describe('AuthService', () => {
     }),
   };
 
+  const mockRequestContext = {
+    setTenantId: jest.fn(),
+    getTenantId: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -51,6 +58,7 @@ describe('AuthService', () => {
         { provide: PrismaService, useValue: mockPrisma },
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
+        { provide: RequestContextService, useValue: mockRequestContext },
       ],
     }).compile();
 

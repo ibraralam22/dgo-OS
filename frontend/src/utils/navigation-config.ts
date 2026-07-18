@@ -8,6 +8,7 @@ import {
   ShieldAlert,
   CreditCard,
   LucideIcon,
+  Shield,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -64,6 +65,12 @@ export const navigationItems: NavItem[] = [
     label: 'User Directory',
     path: '/dashboard/admin/users',
     icon: UserCog,
+    requiredPermissions: ['iam:read'],
+  },
+  {
+    label: 'Roles & Permissions',
+    path: '/dashboard/admin/roles',
+    icon: Shield,
     requiredPermissions: ['iam:read'],
   },
   {

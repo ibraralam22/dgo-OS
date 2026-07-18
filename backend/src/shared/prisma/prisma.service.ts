@@ -1,7 +1,8 @@
-import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
-import { PrismaClient } from '@prisma/client';
+import { Injectable, OnModuleInit, OnModuleDestroy, NotFoundException } from '@nestjs/common';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../../common/context/request-context.service';
 
 @Injectable()
@@ -9,12 +10,19 @@ export class PrismaService
   extends PrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
-  // We expose a public "client" property containing the extended Prisma client that applies RLS
   public readonly client: any;
   private readonly pool: Pool;
 
-  constructor(private readonly requestContextService: RequestContextService) {
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+  constructor(
+    private readonly requestContextService: RequestContextService,
+    private readonly configService: ConfigService,
+  ) {
+    const dbUrl = configService.get<string>('DATABASE_URL');
+    if (!dbUrl) {
+      throw new Error('DATABASE_URL environment variable is missing');
+    }
+
+    const pool = new Pool({ connectionString: dbUrl });
     const adapter = new PrismaPg(pool);
 
     super({
@@ -30,24 +38,129 @@ export class PrismaService
     this.pool = pool;
 
     // Create the extended client mapping automatic tenant context queries
-    this.client = this.$extends({
+    const extendedClient = this.$extends({
       query: {
         $allModels: {
-          async $allOperations({ model, args, query }) {
+          async $allOperations({ model, operation, args, query }) {
             const tenantId = requestContextService.getTenantId();
 
             // Set of models that enforce row-level organization filters
-            const tenantBoundModels = ['AuditLog', 'UserOrganization'];
+            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role', 'Lead'];
 
-            // If we have a tenant ID in context and the model is tenant-bound,
-            // we inject the organizationId directly into the query filters.
             if (tenantId && tenantBoundModels.includes(model)) {
-              const queryArgs = (args || {}) as {
-                where?: Record<string, unknown>;
-              };
-              queryArgs.where = queryArgs.where || {};
-              queryArgs.where.organizationId = tenantId;
-              return query(queryArgs);
+              const queryArgs = (args || {}) as any;
+
+              // Special multi-tenant read filter for Role: allow tenant role OR global system role (null organizationId)
+              const isReadOp = [
+                'findFirst',
+                'findMany',
+                'count',
+                'aggregate',
+                'groupBy',
+              ].includes(operation);
+
+              if (model === 'Role' && isReadOp) {
+                const existingWhere = queryArgs.where || {};
+                queryArgs.where = {
+                  AND: [
+                    existingWhere,
+                    {
+                      OR: [
+                        { organizationId: tenantId },
+                        { organizationId: null },
+                      ],
+                    },
+                  ],
+                };
+                return query(queryArgs);
+              }
+
+              // Strict RLS for all other operations and models
+              // Read operations: inject filter condition
+              if (
+                [
+                  'findFirst',
+                  'findMany',
+                  'count',
+                  'aggregate',
+                  'groupBy',
+                ].includes(operation)
+              ) {
+                queryArgs.where = queryArgs.where || {};
+                queryArgs.where.organizationId = tenantId;
+                return query(queryArgs);
+              }
+
+              // findUnique: translate dynamically to findFirst to allow non-unique filters (like organizationId)
+              if (operation === 'findUnique') {
+                queryArgs.where = queryArgs.where || {};
+                queryArgs.where.organizationId = tenantId;
+                const ctx = Prisma.getExtensionContext(this);
+                return (ctx as any).findFirst(queryArgs);
+              }
+
+              // create: inject organizationId directly into data payload
+              if (operation === 'create') {
+                queryArgs.data = queryArgs.data || {};
+                queryArgs.data.organizationId = tenantId;
+                return query(queryArgs);
+              }
+
+              // createMany: inject organizationId into all array records
+              if (operation === 'createMany') {
+                if (Array.isArray(queryArgs.data)) {
+                  queryArgs.data = queryArgs.data.map((item: any) => ({
+                    ...item,
+                    organizationId: tenantId,
+                  }));
+                } else if (queryArgs.data) {
+                  queryArgs.data.organizationId = tenantId;
+                }
+                return query(queryArgs);
+              }
+
+              // update, delete: verify tenant ownership using findFirst before mutating via unique key
+              if (operation === 'update' || operation === 'delete') {
+                const queryArgs = (args || {}) as any;
+                const existingWhere = queryArgs.where || {};
+                const ctx = Prisma.getExtensionContext(this);
+                const checkArgs = {
+                  where: {
+                    ...existingWhere,
+                    organizationId: tenantId,
+                  },
+                };
+                const record = await (ctx as any).findFirst(checkArgs);
+                if (!record) {
+                  throw new NotFoundException(`Record not found or access denied`);
+                }
+                return query(args);
+              }
+
+              // updateMany, deleteMany: filter mutation targets directly
+              if (
+                [
+                  'updateMany',
+                  'deleteMany',
+                ].includes(operation)
+              ) {
+                queryArgs.where = queryArgs.where || {};
+                queryArgs.where.organizationId = tenantId;
+                return query(queryArgs);
+              }
+
+              // upsert: inject organizationId into scoping criteria, create, and update templates
+              if (operation === 'upsert') {
+                queryArgs.where = queryArgs.where || {};
+                queryArgs.where.organizationId = tenantId;
+
+                queryArgs.create = queryArgs.create || {};
+                queryArgs.create.organizationId = tenantId;
+
+                queryArgs.update = queryArgs.update || {};
+                queryArgs.update.organizationId = tenantId;
+                return query(queryArgs);
+              }
             }
 
             return query(args);
@@ -55,6 +168,22 @@ export class PrismaService
         },
       },
     });
+
+    this.client = extendedClient;
+
+    // NestJS lifecycle context hooks setup
+    const onModuleInit = this.onModuleInit.bind(this);
+    const onModuleDestroy = this.onModuleDestroy.bind(this);
+
+    // Return the proxy client wrapping the extended instance. This routes standard calls
+    // (e.g. this.prisma.user.findMany) directly through the tenant-scoping extension layer!
+    return new Proxy(extendedClient, {
+      get(target, prop, receiver) {
+        if (prop === 'onModuleInit') return onModuleInit;
+        if (prop === 'onModuleDestroy') return onModuleDestroy;
+        return Reflect.get(target, prop, receiver);
+      },
+    }) as any;
   }
 
   async onModuleInit() {

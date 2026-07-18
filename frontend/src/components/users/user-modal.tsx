@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useMutation } from '@tanstack/react-query';
-import { usersApi, UserListItem, CreateUserPayload } from '../../services/users-api';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import React, { useEffect, useState, useMemo } from 'react';
+import { useMutation, useQuery } from '@tanstack/react-query';
+import { usersApi, UserListItem, CreateUserPayload } from '@services/users-api';
+import { rolesApi } from '@services/roles-api';
+import { Button } from '@components/ui/button';
+import { Input } from '@components/ui/input';
+import { Label } from '@components/ui/label';
 import { X, Loader2, Eye, EyeOff } from 'lucide-react';
+import { toast } from '@utils/toast';
 
 type ModalMode = 'create' | 'edit' | 'role';
 
@@ -17,12 +19,26 @@ interface UserModalProps {
   onSuccess: () => void;
 }
 
-const ROLES = ['TenantAdmin', 'SalesRepresentative', 'ClientContact'];
+// Fallback roles list in case API is loading or fails
+const FALLBACK_ROLES = ['TenantAdmin', 'SalesRepresentative', 'ClientContact'];
 
 export default function UserModal({ mode, user, onClose, onSuccess }: UserModalProps) {
   const isCreate = mode === 'create';
   const isEdit = mode === 'edit';
   const isRole = mode === 'role';
+
+  // Fetch dynamic roles list
+  const { data: rolesData } = useQuery({
+    queryKey: ['roles'],
+    queryFn: () => rolesApi.list(),
+  });
+
+  const assignableRoles = useMemo(() => {
+    if (!rolesData?.data) return FALLBACK_ROLES;
+    return rolesData.data
+      .filter((r) => r.name !== 'SuperAdmin')
+      .map((r) => r.name);
+  }, [rolesData]);
 
   // Form state
   const [email, setEmail] = useState('');
@@ -31,8 +47,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
   const [phone, setPhone] = useState(user?.phone ?? '');
   const [password, setPassword] = useState('');
   const [showPass, setShowPass] = useState(false);
-  const [roleName, setRoleName] = useState(user?.role.name ?? ROLES[0]);
-  const [error, setError] = useState<string | null>(null);
+  const [roleName, setRoleName] = useState(user?.role.name ?? 'TenantAdmin');
 
   // Lock scroll when modal open
   useEffect(() => {
@@ -43,33 +58,27 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
   // Create user mutation
   const createMutation = useMutation({
     mutationFn: (payload: CreateUserPayload) => usersApi.create(payload),
-    onSuccess: () => onSuccess(),
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred. Please try again.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+    onSuccess: () => {
+      toast.success('User created successfully.');
+      onSuccess();
     },
   });
 
   // Edit profile mutation
   const editMutation = useMutation({
     mutationFn: (payload: Record<string, string>) => usersApi.update(user!.id, payload),
-    onSuccess: () => onSuccess(),
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+    onSuccess: () => {
+      toast.success('Profile updated successfully.');
+      onSuccess();
     },
   });
 
   // Change role mutation
   const roleMutation = useMutation({
     mutationFn: (role: string) => usersApi.updateRole(user!.id, role),
-    onSuccess: () => onSuccess(),
-    onError: (err: unknown) => {
-      const e = err as { response?: { data?: { message?: string | string[] } } };
-      const msg = e.response?.data?.message ?? 'An error occurred.';
-      setError(Array.isArray(msg) ? msg.join('\n') : msg);
+    onSuccess: () => {
+      toast.success('Role updated successfully.');
+      onSuccess();
     },
   });
 
@@ -77,11 +86,10 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
 
     if (isCreate) {
       if (!email || !firstName || !lastName || !password || !roleName) {
-        setError('Please fill all required fields.');
+        toast.error('Please fill all required fields.');
         return;
       }
       createMutation.mutate({ email, firstName, lastName, phone: phone || undefined, password, roleName });
@@ -126,13 +134,6 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
 
         {/* Body */}
         <form id="user-modal-form" onSubmit={handleSubmit} className="flex flex-col gap-4 p-5">
-          {/* Error */}
-          {error && (
-            <div className="rounded-lg bg-destructive/10 border border-destructive/25 p-3 text-xs font-medium text-destructive whitespace-pre-line">
-              {error}
-            </div>
-          )}
-
           {/* Role-only mode */}
           {isRole && (
             <div className="flex flex-col gap-1.5">
@@ -144,7 +145,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
                 disabled={isLoading}
                 className="h-9 w-full rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
               >
-                {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                {assignableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
               </select>
               <p className="text-[11px] text-muted-foreground pl-1">
                 Current role: <span className="font-semibold text-foreground">{user?.role.name}</span>
@@ -218,7 +219,7 @@ export default function UserModal({ mode, user, onClose, onSuccess }: UserModalP
                       disabled={isLoading}
                       className="h-9 w-full rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50"
                     >
-                      {ROLES.map((r) => <option key={r} value={r}>{r}</option>)}
+                      {assignableRoles.map((r) => <option key={r} value={r}>{r}</option>)}
                     </select>
                   </div>
 

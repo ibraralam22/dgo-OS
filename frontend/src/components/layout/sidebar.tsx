@@ -67,6 +67,7 @@ export function Sidebar() {
             <Link
               key={item.path}
               href={item.path}
+              aria-label={isCollapsed ? item.label : undefined}
               className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
                 isActive
                   ? 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5'
