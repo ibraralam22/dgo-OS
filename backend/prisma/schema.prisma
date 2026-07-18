@@ -21,6 +21,8 @@ model Organization {
   auditLogs         AuditLog[]
   roles             Role[]
   leads             Lead[]
+  accounts          Account[]
+  contacts          Contact[]
 
   @@map("organizations")
 }
@@ -196,3 +198,79 @@ model Lead {
   @@index([companyName])
   @@map("leads")
 }
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  ONBOARDING
+}
+
+enum ContactRole {
+  DECISION_MAKER
+  INFLUENCER
+  GATEKEEPER
+  USER
+}
+
+enum ContactStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model Account {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId  String         @db.Uuid
+  parentAccountId String?        @db.Uuid
+  name            String         @db.VarChar(255)
+  domain          String         @db.VarChar(255)
+  industry        String?        @db.VarChar(100)
+  employeeCount   Int?
+  annualRevenue   Decimal?       @db.Decimal(18, 2)
+  billingStreet   String?        @db.VarChar(255)
+  billingCity     String?        @db.VarChar(100)
+  billingCountry  String         @db.VarChar(100)
+  status          AccountStatus  @default(ACTIVE)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(6)
+  deletedAt       DateTime?      @db.Timestamptz(6)
+  createdBy       String?        @db.Uuid
+  updatedBy       String?        @db.Uuid
+
+  organization    Organization   @relation(fields: [organizationId], references: [id])
+  parentAccount   Account?       @relation("AccountHierarchy", fields: [parentAccountId], references: [id], onDelete: Restrict)
+  subsidiaries    Account[]      @relation("AccountHierarchy")
+  contacts        Contact[]
+
+  @@index([organizationId])
+  @@index([parentAccountId])
+  @@map("accounts")
+}
+
+model Contact {
+  id               String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId   String         @db.Uuid
+  accountId        String         @db.Uuid
+  firstName        String         @db.VarChar(100)
+  lastName         String         @db.VarChar(100)
+  email            String         @db.VarChar(255)
+  phone            String?        @db.VarChar(50)
+  jobTitle         String?        @db.VarChar(150)
+  department       String?        @db.VarChar(100)
+  roleScope        ContactRole    @default(USER)
+  isPrimaryBilling Boolean        @default(false)
+  status           ContactStatus  @default(ACTIVE)
+  createdAt        DateTime       @default(now()) @db.Timestamptz(6)
+  updatedAt        DateTime       @updatedAt @db.Timestamptz(6)
+  deletedAt        DateTime?      @db.Timestamptz(6)
+  createdBy        String?        @db.Uuid
+  updatedBy        String?        @db.Uuid
+
+  organization     Organization   @relation(fields: [organizationId], references: [id])
+  account          Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+  @@index([accountId])
+  @@map("contacts")
+}
+

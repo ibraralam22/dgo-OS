@@ -45,7 +45,7 @@ export class PrismaService
             const tenantId = requestContextService.getTenantId();
 
             // Set of models that enforce row-level organization filters
-            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role', 'Lead'];
+            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role', 'Lead', 'Account', 'Contact'];
 
             if (tenantId && tenantBoundModels.includes(model)) {
               const queryArgs = (args || {}) as any;
@@ -96,7 +96,10 @@ export class PrismaService
                 queryArgs.where = queryArgs.where || {};
                 queryArgs.where.organizationId = tenantId;
                 const ctx = Prisma.getExtensionContext(this);
-                return (ctx as any).findFirst(queryArgs);
+                const modelDelegate = typeof (ctx as any).findFirst === 'function'
+                  ? ctx
+                  : (ctx as any)[model.charAt(0).toLowerCase() + model.slice(1)];
+                return modelDelegate.findFirst(queryArgs);
               }
 
               // create: inject organizationId directly into data payload
@@ -124,13 +127,16 @@ export class PrismaService
                 const queryArgs = (args || {}) as any;
                 const existingWhere = queryArgs.where || {};
                 const ctx = Prisma.getExtensionContext(this);
+                const modelDelegate = typeof (ctx as any).findFirst === 'function'
+                  ? ctx
+                  : (ctx as any)[model.charAt(0).toLowerCase() + model.slice(1)];
                 const checkArgs = {
                   where: {
                     ...existingWhere,
                     organizationId: tenantId,
                   },
                 };
-                const record = await (ctx as any).findFirst(checkArgs);
+                const record = await modelDelegate.findFirst(checkArgs);
                 if (!record) {
                   throw new NotFoundException(`Record not found or access denied`);
                 }

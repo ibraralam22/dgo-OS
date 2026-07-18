@@ -11,6 +11,7 @@ import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { LeadsModule } from './modules/leads/leads.module';
+import { ClientsModule } from './modules/clients/clients.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { LeadsModule } from './modules/leads/leads.module';
     RolesModule,
     DashboardModule,
     LeadsModule,
+    ClientsModule,
   ],
   controllers: [AppController],
   providers: [
