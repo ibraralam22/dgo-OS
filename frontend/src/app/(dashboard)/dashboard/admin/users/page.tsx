@@ -2,9 +2,9 @@
 
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { usersApi, UserListItem } from '../../../../services/users-api';
-import { toast } from '../../../../utils/toast';
-import { useAuthStore } from '../../../../store/auth-store';
+import { usersApi, UserListItem } from '@services/users-api';
+import { toast } from '@utils/toast';
+import { useAuthStore } from '@store/auth-store';
 import {
   Users,
   Plus,
@@ -19,10 +19,10 @@ import {
   Edit,
   Trash2,
 } from 'lucide-react';
-import { Button } from '../../../../components/ui/button';
-import { Input } from '../../../../components/ui/input';
-import { cn } from '../../../../utils/cn';
-import UserModal from '../../../../components/users/user-modal';
+import { Button } from '@components/ui/button';
+import { Input } from '@components/ui/input';
+import { cn } from '@utils/cn';
+import UserModal from '@components/users/user-modal';
 
 // ─── Status badge component ───────────────────────────────────────────────────
 function StatusBadge({ status }: { status: string }) {

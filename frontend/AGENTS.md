@@ -1,7 +1,458 @@
 <!-- BEGIN:nextjs-agent-rules -->
-# This is NOT the Next.js you know
 
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` before writing any code. Heed deprecation notices.
+# Next.js: ALWAYS read docs before coding
+
+Before any Next.js work, find and read the relevant doc in `node_modules/next/dist/docs/`. Your training data is outdated — the docs are the source of truth.
+
+## Source: `.kiro/steering/api-services.md`
+
+---
+
+## inclusion: always
+
+# API Services Pattern
+
+## Service Layer Structure
+
+Place all API logic in `@services/*` directory organized by feature:
+
+```
+src/services/
+  ├── leads/
+  │   ├── lead.service.ts
+  │   └── draft-booking.service.ts
+  ├── payouts/
+  │   ├── payout.service.ts
+  │   └── settlement.service.ts
+  └── services.service.ts
+```
+
+## Service Function Pattern
+
+Create reusable functions with proper TypeScript types:
+
+```typescript
+import axios from 'axios';
+
+export const getUser = async (userId: string): Promise<User> => {
+  const { data } = await axios.get(`/api/users/${userId}`);
+  return data;
+};
+```
+
+## React Query Integration
+
+Place React Query hooks in `@query/*` directory:
+
+```typescript
+import { getUser } from '@services/userService';
+
+import { useQuery } from '@tanstack/react-query';
+
+export const useUser = (userId: string) => {
+  return useQuery(['user', userId], () => getUser(userId));
+};
+```
+
+Use descriptive filenames like `user.data.ts` for query functions.
+
+## API Documentation
+
+**Before implementing any API integration:**
+
+1. Check `docs/` folder for API documentation
+2. Review endpoint specifications
+3. Verify request/response types
+4. Follow documented patterns
+
+## Source: `.kiro/steering/code-quality.md`
+
+---
+
+## inclusion: always
+
+# Code Quality Standards
+
+## Linting and Formatting
+
+- Follow **ESLint** rules configured in `eslint.config.mjs`
+- Use **Prettier** for code formatting (`.prettierrc`)
+- Run linting before commits (Husky pre-commit hook)
+
+## Accessibility
+
+- Use Radix UI for built-in accessibility
+- Test with keyboard navigation
+- Test with screen readers
+- Ensure proper ARIA attributes
+- Maintain proper heading hierarchy
+- Provide alt text for images
+
+## Performance
+
+- Lazy load components with dynamic imports
+- Optimize images with next/image
+- Use React Suspense for async operations
+- Implement proper loading states
+- Avoid unnecessary re-renders
+
+## Best Practices
+
+- Write self-documenting code
+- Keep functions small and focused
+- Follow DRY (Don't Repeat Yourself)
+- Use meaningful variable and function names
+- Add comments for complex logic only
+- Prefer composition over inheritance
+
+## Source: `.kiro/steering/nextjs-conventions.md`
+
+---
+
+## inclusion: always
+
+# Next.js App Router Conventions
+
+## Component Types
+
+- **Prefer server components** by default
+- Add `'use client';` directive only when client-side interactivity is required
+- Use `async` components for data fetching with React Suspense
+
+## File-Based Routing
+
+- Use `app/` directory for all routes
+- `layout.tsx` - Shared layouts
+- `page.tsx` - Route pages
+- `loading.tsx` - Loading states
+- `error.tsx` - Error handling
+
+## Metadata
+
+Use the `metadata` object in server components:
+
+```typescript
+export const metadata = {
+  title: 'Page Title',
+  description: 'Page description',
+};
+```
+
+## Navigation
+
+Always use Next.js `Link` component for internal routing:
+
+```tsx
+import Link from 'next/link';
+
+<Link href='/about'>About Us</Link>;
+```
+
+## Performance
+
+- Use `dynamic import()` for lazy-loading components
+- Implement proper loading states with Suspense
+- Optimize images with `next/image`
+
+## Source: `.kiro/steering/project-structure.md`
+
+---
+
+## inclusion: always
+
+# Project Structure and Path Aliases
+
+This is a **Next.js** project using the **App Router** with TypeScript.
+
+## Path Aliases
+
+Always use these path aliases instead of relative imports:
+
+- `@app/*` → `src/app`
+- `@models/*` → `src/models`
+- `@customTypes/*` → `src/types`
+- `@routes/*` → `src/routes` (internal page routes)
+- `@components/*` → `src/components`
+- `@services/*` → `src/services` (API calls)
+- `@query/*` or `@data/*` → `src/data` (React Query functions)
+- `@lib/*` → `src/lib`
+- `@utils/*` → `src/utils` (utility/helper functions)
+- `@store/*` → `src/store` (Zustand stores)
+- `@assets/*` → `src/assets`
+- `@src/*` → `src` (general)
+- `@public/*` → `public` (static files)
+
+## Asset Management
+
+- Use **kebab-case** for all asset names (e.g., `user-avatar.png`)
+- Place assets in `public/` folder within component-specific folders
+- Common shared assets go in `public/common/`
+
+## API Documentation
+
+**Always check `docs/` folder before implementing features** - it contains API documentation for:
+
+- `docs/admin-api-integration.md`
+- `docs/admin-lead-intake-api.md`
+- `docs/admin-mechanics-api.md`
+- `docs/nearby-mechanics-api.md`
+
+## Source: `.kiro/steering/state-management.md`
+
+---
+
+## inclusion: always
+
+# State Management with Zustand
+
+## Store Structure
+
+Place all Zustand stores in `@store/*` directory organized by feature.
+
+## Store Pattern
+
+Create modular, feature-specific stores:
+
+```typescript
+import { create } from 'zustand';
+
+interface UserState {
+  user: User | null;
+  setUser: (user: User) => void;
+  clearUser: () => void;
+}
+
+export const useUserStore = create<UserState>((set) => ({
+  user: null,
+  setUser: (user) => set({ user }),
+  clearUser: () => set({ user: null }),
+}));
+```
+
+## Best Practices
+
+- Keep stores focused on specific features
+- Use TypeScript interfaces for state shape
+- Provide clear action names
+- Avoid storing server state (use React Query instead)
+- Use Zustand for UI state, user preferences, and global app state
+
+## Source: `.kiro/steering/typescript-standards.md`
+
+---
+
+## inclusion: always
+
+# TypeScript Standards
+
+## Type Annotations
+
+Always provide explicit types for:
+
+- Function parameters
+- Function return types
+- Component props
+- State variables
+
+## Type Definitions
+
+Store type definitions in:
+
+- `@customTypes/*` - General type definitions
+- `@models/*` - Data models and entities
+
+Example model:
+
+```typescript
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: Date;
+}
+```
+
+## Component Props
+
+Use interfaces for component props:
+
+```typescript
+interface ButtonProps {
+  label: string;
+  onClick: () => void;
+  variant?: 'primary' | 'secondary';
+  disabled?: boolean;
+}
+
+export function Button({ label, onClick, variant = 'primary', disabled }: ButtonProps) {
+  // implementation
+}
+```
+
+## Best Practices
+
+- Prefer `interface` over `type` for object shapes
+- Use `type` for unions, intersections, and mapped types
+- Avoid `any` - use `unknown` if type is truly unknown
+- Use strict TypeScript configuration
+- Leverage type inference where appropriate
+
+## Source: `.kiro/steering/ui-components.md`
+
+---
+
+## inclusion: always
+
+# UI Component Guidelines
+
+## Radix UI + Tailwind CSS
+
+Use **Radix UI primitives** for all interactive components combined with:
+
+- **Tailwind CSS** for styling
+- **class-variance-authority (cva)** for variants
+- **tailwind-merge (cn)** for conditional classes
+
+## Available Radix UI Components
+
+- `@radix-ui/react-accordion`
+- `@radix-ui/react-alert-dialog`
+- `@radix-ui/react-avatar`
+- `@radix-ui/react-checkbox`
+- `@radix-ui/react-dialog`
+- `@radix-ui/react-dropdown-menu`
+- `@radix-ui/react-label`
+- `@radix-ui/react-menubar`
+- `@radix-ui/react-popover`
+- `@radix-ui/react-progress`
+- `@radix-ui/react-radio-group`
+- `@radix-ui/react-scroll-area`
+- `@radix-ui/react-select`
+- `@radix-ui/react-separator`
+- `@radix-ui/react-slider`
+- `@radix-ui/react-switch`
+- `@radix-ui/react-tabs`
+- `@radix-ui/react-toast`
+- `@radix-ui/react-tooltip`
+
+## Component Pattern
+
+Follow shadcn/ui architecture with compound components:
+
+```tsx
+import { forwardRef } from 'react';
+
+import { cn } from '@lib/utils';
+import { Slot } from '@radix-ui/react-slot';
+import { type VariantProps, cva } from 'class-variance-authority';
+
+const buttonVariants = cva('inline-flex items-center justify-center rounded-md text-sm font-medium transition-colors', {
+  variants: {
+    variant: {
+      default: 'bg-primary text-primary-foreground hover:bg-primary/90',
+      secondary: 'bg-secondary text-secondary-foreground hover:bg-secondary/80',
+    },
+    size: {
+      default: 'h-10 px-4 py-2',
+      sm: 'h-9 px-3',
+      lg: 'h-11 px-8',
+    },
+  },
+  defaultVariants: {
+    variant: 'default',
+    size: 'default',
+  },
+});
+
+export interface ButtonProps
+  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+    VariantProps<typeof buttonVariants> {
+  asChild?: boolean;
+}
+
+const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+  ({ className, variant, size, asChild = false, ...props }, ref) => {
+    const Comp = asChild ? Slot : 'button';
+    return <Comp className={cn(buttonVariants({ variant, size, className }))} ref={ref} {...props} />;
+  }
+);
+Button.displayName = 'Button';
+
+export { Button, buttonVariants };
+```
+
+## Modular Components
+
+- Create **small, single-responsibility** components
+- Place reusable components in `@components/*`
+- Use **forwardRef** for ref forwarding
+- Implement proper TypeScript interfaces
+- Follow accessibility best practices (Radix UI provides this)
+
+## Utility Function
+
+Ensure `@lib/utils.ts` has the cn utility:
+
+```typescript
+import { type ClassValue, clsx } from 'clsx';
+import { twMerge } from 'tailwind-merge';
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+```
+
+## Component Folder Structure (UI)
+
+```
+component-name/
+├── component-name.tsx
+├── utils.ts
+├── types/
+│   ├── component-name.types.ts
+│   └── child-component1.types.ts
+└── child-component/
+    ├── child-component1.tsx
+    └── child-component2.tsx
+```
+
+### Component Structure
+
+```typescript
+// src/components/feature/feature-component.tsx
+import React from 'react';
+
+interface IFeatureComponentProps {
+  // Props definition
+}
+
+export const FeatureComponent: React.FC<IFeatureComponentProps> = (props) => {
+  // Component logic
+  return <div>{/* JSX */}</div>;
+};
+```
+
+## Component Declaration Style
+
+- Prefer arrow-function component declarations with `React.FC` typing.
+- Example:
+
+```typescript
+interface IExampleProps {
+  // Props definition
+}
+
+export const Example: React.FC<IExampleProps> = (props) => {
+  return <div />;
+};
+```
+
+## Always-On Skills
+
+- Use `next-dev-loop` to verify Next.js runtime behavior after editing app code.
+- Use `next-cache-components-adoption` when adopting or auditing Cache Components.
+- Use `next-cache-components-optimizer` to optimize static shell render times and navigation transitions.
+- Use `next-partial-prefetching-adoption` when configuring or troubleshooting Partial Prefetching.
+- Follow `modern-web-guidance` for any UI/UX, styling (vanilla CSS, HTML dialog/popover/anchor positioning), and web performance adjustments.
+
 <!-- END:nextjs-agent-rules -->
-
-<!-- NEXT-AGENTS-MD-START -->[Next.js Docs Index]|root: ./node_modules/next/dist/docs|STOP. What you remember about Next.js is WRONG for this project. Always search docs and read before any task.|If docs missing, run this command first: npx @next/codemod agents-md --output AGENTS.md|01-app:{04-glossary.md}|01-app/01-getting-started:{01-installation.md,02-project-structure.md,03-layouts-and-pages.md,04-linking-and-navigating.md,05-server-and-client-components.md,06-fetching-data.md,07-mutating-data.md,08-caching.md,09-revalidating.md,10-error-handling.md,11-css.md,12-images.md,13-fonts.md,14-metadata-and-og-images.md,15-route-handlers.md,16-proxy.md,17-deploying.md,18-upgrading.md}|01-app/02-guides:{ai-agents.md,analytics.md,authentication.md,backend-for-frontend.md,caching-without-cache-components.md,cdn-caching.md,ci-build-caching.md,content-security-policy.md,css-in-js.md,custom-server.md,data-security.md,debugging.md,deploying-to-platforms.md,draft-mode.md,environment-variables.md,forms.md,how-revalidation-works.md,incremental-static-regeneration.md,instant-navigation.md,instrumentation.md,internationalization.md,json-ld.md,lazy-loading.md,local-development.md,mcp.md,mdx.md,memory-usage.md,migrating-to-cache-components.md,multi-tenant.md,multi-zones.md,open-telemetry.md,package-bundling.md,ppr-platform-guide.md,prefetching.md,preserving-ui-state.md,preventing-flash-before-hydration.md,production-checklist.md,progressive-web-apps.md,public-static-pages.md,redirecting.md,rendering-philosophy.md,sass.md,scripts.md,self-hosting.md,server-actions.md,single-page-applications.md,static-exports.md,streaming.md,tailwind-v3-css.md,third-party-libraries.md,videos.md,view-transitions.md}|01-app/02-guides/migrating:{app-router-migration.md,from-create-react-app.md,from-vite.md}|01-app/02-guides/testing:{cypress.md,jest.md,playwright.md,vitest.md}|01-app/02-guides/upgrading:{codemods.md,version-14.md,version-15.md,version-16.md}|01-app/03-api-reference:{07-edge.md,08-turbopack.md}|01-app/03-api-reference/01-directives:{use-cache-private.md,use-cache-remote.md,use-cache.md,use-client.md,use-server.md}|01-app/03-api-reference/02-components:{font.md,form.md,image.md,link.md,script.md}|01-app/03-api-reference/03-file-conventions/01-metadata:{app-icons.md,manifest.md,opengraph-image.md,robots.md,sitemap.md}|01-app/03-api-reference/03-file-conventions/02-route-segment-config:{dynamicParams.md,instant.md,maxDuration.md,preferredRegion.md,runtime.md}|01-app/03-api-reference/03-file-conventions:{default.md,dynamic-routes.md,error.md,forbidden.md,instrumentation-client.md,instrumentation.md,intercepting-routes.md,layout.md,loading.md,mdx-components.md,not-found.md,page.md,parallel-routes.md,proxy.md,public-folder.md,route-groups.md,route.md,src-folder.md,template.md,unauthorized.md}|01-app/03-api-reference/04-functions:{after.md,cacheLife.md,cacheTag.md,catchError.md,connection.md,cookies.md,draft-mode.md,fetch.md,forbidden.md,generate-image-metadata.md,generate-metadata.md,generate-sitemaps.md,generate-static-params.md,generate-viewport.md,headers.md,image-response.md,next-request.md,next-response.md,not-found.md,permanentRedirect.md,redirect.md,refresh.md,revalidatePath.md,revalidateTag.md,unauthorized.md,unstable_cache.md,unstable_noStore.md,unstable_rethrow.md,updateTag.md,use-link-status.md,use-params.md,use-pathname.md,use-report-web-vitals.md,use-router.md,use-search-params.md,use-selected-layout-segment.md,use-selected-layout-segments.md,userAgent.md}|01-app/03-api-reference/05-config/01-next-config-js:{adapterPath.md,allowedDevOrigins.md,appDir.md,assetPrefix.md,authInterrupts.md,basePath.md,cacheComponents.md,cacheHandlers.md,cacheLife.md,compress.md,crossOrigin.md,cssChunking.md,deploymentId.md,devIndicators.md,distDir.md,env.md,expireTime.md,exportPathMap.md,generateBuildId.md,generateEtags.md,headers.md,htmlLimitedBots.md,httpAgentOptions.md,images.md,incrementalCacheHandlerPath.md,inlineCss.md,logging.md,mdxRs.md,onDemandEntries.md,optimizePackageImports.md,output.md,pageExtensions.md,poweredByHeader.md,productionBrowserSourceMaps.md,proxyClientMaxBodySize.md,reactCompiler.md,reactMaxHeadersLength.md,reactStrictMode.md,redirects.md,rewrites.md,sassOptions.md,serverActions.md,serverComponentsHmrCache.md,serverExternalPackages.md,staleTimes.md,staticGeneration.md,taint.md,trailingSlash.md,transpilePackages.md,turbopack.md,turbopackFileSystemCache.md,turbopackIgnoreIssue.md,turbopackLocalPostcssConfig.md,typedRoutes.md,typescript.md,urlImports.md,useLightningcss.md,viewTransition.md,webVitalsAttribution.md,webpack.md}|01-app/03-api-reference/05-config:{02-typescript.md,03-eslint.md}|01-app/03-api-reference/06-cli:{create-next-app.md,next.md}|01-app/03-api-reference/07-adapters:{01-configuration.md,02-creating-an-adapter.md,03-api-reference.md,04-testing-adapters.md,05-routing-with-next-routing.md,06-implementing-ppr-in-an-adapter.md,07-runtime-integration.md,08-invoking-entrypoints.md,09-output-types.md,10-routing-information.md,11-use-cases.md}|02-pages/01-getting-started:{01-installation.md,02-project-structure.md,04-images.md,05-fonts.md,06-css.md,11-deploying.md}|02-pages/02-guides:{analytics.md,authentication.md,babel.md,ci-build-caching.md,content-security-policy.md,css-in-js.md,custom-server.md,debugging.md,draft-mode.md,environment-variables.md,forms.md,incremental-static-regeneration.md,instrumentation.md,internationalization.md,lazy-loading.md,mdx.md,multi-zones.md,open-telemetry.md,package-bundling.md,post-css.md,preview-mode.md,production-checklist.md,redirecting.md,sass.md,scripts.md,self-hosting.md,static-exports.md,tailwind-v3-css.md,third-party-libraries.md}|02-pages/02-guides/migrating:{app-router-migration.md,from-create-react-app.md,from-vite.md}|02-pages/02-guides/testing:{cypress.md,jest.md,playwright.md,vitest.md}|02-pages/02-guides/upgrading:{codemods.md,version-10.md,version-11.md,version-12.md,version-13.md,version-14.md,version-9.md}|02-pages/03-building-your-application/01-routing:{01-pages-and-layouts.md,02-dynamic-routes.md,03-linking-and-navigating.md,05-custom-app.md,06-custom-document.md,07-api-routes.md,08-custom-error.md}|02-pages/03-building-your-application/02-rendering:{01-server-side-rendering.md,02-static-site-generation.md,04-automatic-static-optimization.md,05-client-side-rendering.md}|02-pages/03-building-your-application/03-data-fetching:{01-get-static-props.md,02-get-static-paths.md,03-get-server-side-props.md,05-client-side.md}|02-pages/03-building-your-application/06-configuring:{12-error-handling.md}|02-pages/04-api-reference:{06-edge.md,08-turbopack.md}|02-pages/04-api-reference/01-components:{font.md,form.md,head.md,image-legacy.md,image.md,link.md,script.md}|02-pages/04-api-reference/02-file-conventions:{instrumentation.md,proxy.md,public-folder.md,src-folder.md}|02-pages/04-api-reference/03-functions:{get-initial-props.md,get-server-side-props.md,get-static-paths.md,get-static-props.md,next-request.md,next-response.md,use-params.md,use-report-web-vitals.md,use-router.md,use-search-params.md,userAgent.md}|02-pages/04-api-reference/04-config/01-next-config-js:{adapterPath.md,allowedDevOrigins.md,assetPrefix.md,basePath.md,bundlePagesRouterDependencies.md,compress.md,crossOrigin.md,deploymentId.md,devIndicators.md,distDir.md,env.md,exportPathMap.md,generateBuildId.md,generateEtags.md,headers.md,httpAgentOptions.md,images.md,logging.md,onDemandEntries.md,optimizePackageImports.md,output.md,pageExtensions.md,poweredByHeader.md,productionBrowserSourceMaps.md,proxyClientMaxBodySize.md,reactStrictMode.md,redirects.md,rewrites.md,serverExternalPackages.md,trailingSlash.md,transpilePackages.md,turbopack.md,typescript.md,urlImports.md,useLightningcss.md,webVitalsAttribution.md,webpack.md}|02-pages/04-api-reference/04-config:{01-typescript.md,02-eslint.md}|02-pages/04-api-reference/05-cli:{create-next-app.md,next.md}|02-pages/04-api-reference/06-adapters:{01-configuration.md,02-creating-an-adapter.md,03-api-reference.md,04-testing-adapters.md,05-routing-with-next-routing.md,06-implementing-ppr-in-an-adapter.md,07-runtime-integration.md,08-invoking-entrypoints.md,09-output-types.md,10-routing-information.md,11-use-cases.md}|03-architecture:{accessibility.md,fast-refresh.md,nextjs-compiler.md,supported-browsers.md}|04-community:{01-contribution-guide.md,02-rspack.md}<!-- NEXT-AGENTS-MD-END -->

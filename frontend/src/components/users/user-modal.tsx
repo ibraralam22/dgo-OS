@@ -2,12 +2,12 @@
 
 import React, { useEffect, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { usersApi, UserListItem, CreateUserPayload } from '../../services/users-api';
-import { Button } from '../ui/button';
-import { Input } from '../ui/input';
-import { Label } from '../ui/label';
+import { usersApi, UserListItem, CreateUserPayload } from '@services/users-api';
+import { Button } from '@components/ui/button';
+import { Input } from '@components/ui/input';
+import { Label } from '@components/ui/label';
 import { X, Loader2, Eye, EyeOff } from 'lucide-react';
-import { toast } from '../../utils/toast';
+import { toast } from '@utils/toast';
 
 type ModalMode = 'create' | 'edit' | 'role';
 
