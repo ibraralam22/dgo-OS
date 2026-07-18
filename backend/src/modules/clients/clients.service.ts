@@ -195,39 +195,77 @@ export class ClientsService {
     return false;
   }
 
-  // Get Recursive Hierarchy Tree
+  // Get Recursive Hierarchy Tree (Optimized to avoid loading all tenant accounts)
   async getAccountHierarchy(id: string, orgId: string) {
-    // Fetch all active accounts of this organization in-memory for lightning-fast tree traversal
-    const allAccounts = await this.prisma.account.findMany({
-      where: { organizationId: orgId, deletedAt: null },
-      select: { id: true, name: true, domain: true, parentAccountId: true },
+    // 1. Walk up to the root parent account
+    let rootId = id;
+    let parentNode: { parentAccountId: string | null } | null = await this.prisma.account.findFirst({
+      where: { id: rootId, organizationId: orgId, deletedAt: null },
+      select: { parentAccountId: true },
     });
 
-    const accountMap = new Map<string, any>();
-    allAccounts.forEach((acc) => {
-      accountMap.set(acc.id, { ...acc, subsidiaries: [] });
+    let depth = 0;
+    while (parentNode?.parentAccountId && depth < 10) {
+      rootId = parentNode.parentAccountId;
+      parentNode = await this.prisma.account.findFirst({
+        where: { id: rootId, organizationId: orgId, deletedAt: null },
+        select: { parentAccountId: true },
+      });
+      depth++;
+    }
+
+    // 2. Fetch the hierarchy tree starting from the root node down to 4 nested subsidiary levels
+    const rootTree = await this.prisma.account.findFirst({
+      where: { id: rootId, organizationId: orgId, deletedAt: null },
+      select: {
+        id: true,
+        name: true,
+        domain: true,
+        parentAccountId: true,
+        subsidiaries: {
+          where: { deletedAt: null },
+          select: {
+            id: true,
+            name: true,
+            domain: true,
+            parentAccountId: true,
+            subsidiaries: {
+              where: { deletedAt: null },
+              select: {
+                id: true,
+                name: true,
+                domain: true,
+                parentAccountId: true,
+                subsidiaries: {
+                  where: { deletedAt: null },
+                  select: {
+                    id: true,
+                    name: true,
+                    domain: true,
+                    parentAccountId: true,
+                    subsidiaries: {
+                      where: { deletedAt: null },
+                      select: {
+                        id: true,
+                        name: true,
+                        domain: true,
+                        parentAccountId: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     });
 
-    // Populate subsidiaries lists
-    let rootNode: any = null;
-    allAccounts.forEach((acc) => {
-      const node = accountMap.get(acc.id);
-      if (acc.id === id) {
-        rootNode = node;
-      }
-      if (acc.parentAccountId) {
-        const parentNode = accountMap.get(acc.parentAccountId);
-        if (parentNode) {
-          parentNode.subsidiaries.push(node);
-        }
-      }
-    });
-
-    if (!rootNode) {
+    if (!rootTree) {
       throw new NotFoundException(`Account ${id} not found`);
     }
 
-    return rootNode;
+    return rootTree;
   }
 
   // -------------------------------------------------------------
