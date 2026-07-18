@@ -243,6 +243,7 @@ model Account {
 
   @@index([organizationId])
   @@index([parentAccountId])
+  @@index([domain])
   @@map("accounts")
 }
 

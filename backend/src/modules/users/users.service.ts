@@ -80,9 +80,27 @@ export class UsersService {
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: {
-          user: true,
-          role: true,
+        select: {
+          createdAt: true,
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+              phone: true,
+              status: true,
+              timezone: true,
+              createdAt: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              description: true,
+            },
+          },
         },
       }),
       this.prisma.userOrganization.count({ where }),

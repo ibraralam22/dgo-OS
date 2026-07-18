@@ -5,6 +5,16 @@ import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../../common/context/request-context.service';
 
+/**
+ * PrismaService: Handles database pooling and query lifecycle extensions.
+ * 
+ * SECURITY WARNING ON RLS LIMITATIONS:
+ * - Row-Level Security (RLS) organization filters are automatically enforced on standard 
+ *   Prisma Client model methods (e.g. findFirst, findMany, create, update, delete, etc.).
+ * - CRITICAL: Prisma query extensions do NOT intercept raw DB commands ($queryRaw, $executeRaw, etc.).
+ *   Any custom raw SQL operations MUST manually bind and sanitize `organizationId` parameters
+ *   to prevent cross-tenant database leakage!
+ */
 @Injectable()
 export class PrismaService
   extends PrismaClient

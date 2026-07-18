@@ -70,6 +70,17 @@ export default function ContactModal({ isOpen, onClose, contact, defaultAccountI
     }
   }, [isOpen, isEdit, contact, defaultAccountId]);
 
+  // Listen for Escape key press to close modal
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Mutations
   const createMutation = useMutation({
     mutationFn: (data: any) => clientsApi.createContact(data),
