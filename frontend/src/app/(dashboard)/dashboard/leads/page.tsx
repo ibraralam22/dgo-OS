@@ -253,7 +253,7 @@ export default function LeadsPage() {
         </div>
 
         {/* Data Table */}
-        <div className="overflow-x-auto">
+        <div className="overflow-x-auto min-h-[220px]">
           <table className="w-full text-left border-collapse min-w-[800px]" aria-label="Leads list directory">
             <thead>
               <tr className="border-b border-border/10 bg-accent/10">
