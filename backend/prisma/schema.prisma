@@ -28,6 +28,7 @@ model Organization {
   onboardingMilestones OnboardingMilestone[]
   quotations         Quotation[]
   tasks              Task[]
+  calendarEvents     CalendarEvent[]
 
   @@map("organizations")
 }
@@ -56,6 +57,8 @@ model User {
   managedProjects    ProjectOnboarding[] @relation(name: "ManagerProjects")
   assignedTasks      Task[]             @relation("TaskAssignee")
   createdTasks       Task[]             @relation("TaskCreator")
+  createdEvents      CalendarEvent[]    @relation("EventCreator")
+  eventAttendances   EventAttendee[]    @relation("EventAttendances")
 
   @@map("users")
 }
@@ -479,4 +482,71 @@ model Task {
   @@index([status])
   @@index([dueDate])
   @@map("tasks")
+}
+
+enum EventType {
+  MEETING
+  CALL
+  DEMO
+  FOLLOW_UP
+  DEADLINE
+  REMINDER
+  OTHER
+}
+
+enum RecurrenceFrequency {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+/// Shared team scheduling events with optional CRM entity links and attendees
+model CalendarEvent {
+  id             String              @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String              @db.Uuid
+  title          String              @db.VarChar(255)
+  description    String?             @db.Text
+  type           EventType           @default(MEETING)
+  startAt        DateTime            @db.Timestamptz(6)
+  endAt          DateTime            @db.Timestamptz(6)
+  allDay         Boolean             @default(false)
+  location       String?             @db.VarChar(255)
+  recurrence     RecurrenceFrequency @default(NONE)
+
+  // Polymorphic CRM entity link (optional)
+  entityType     String?             @db.VarChar(50) // lead | account | opportunity | project | task
+  entityId       String?             @db.Uuid
+
+  // Ownership
+  createdById    String              @db.Uuid
+
+  createdAt      DateTime            @default(now()) @db.Timestamptz(6)
+  updatedAt      DateTime            @updatedAt @db.Timestamptz(6)
+  deletedAt      DateTime?           @db.Timestamptz(6)
+
+  // Relations
+  organization   Organization        @relation(fields: [organizationId], references: [id])
+  createdBy      User                @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  attendees      EventAttendee[]
+
+  @@index([organizationId])
+  @@index([createdById])
+  @@index([startAt])
+  @@index([entityType, entityId])
+  @@map("calendar_events")
+}
+
+model EventAttendee {
+  eventId        String        @db.Uuid
+  userId         String        @db.Uuid
+  status         String        @default("INVITED") @db.VarChar(50) // INVITED | ACCEPTED | DECLINED
+  createdAt      DateTime      @default(now()) @db.Timestamptz(6)
+
+  event          CalendarEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user           User          @relation("EventAttendances", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("event_attendees")
 }

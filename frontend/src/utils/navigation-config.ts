@@ -10,6 +10,7 @@ import {
   LucideIcon,
   Shield,
   CheckSquare,
+  CalendarDays,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -55,6 +56,12 @@ export const navigationItems: NavItem[] = [
     path: '/dashboard/tasks',
     icon: CheckSquare,
     requiredPermissions: ['tasks:read'],
+  },
+  {
+    label: 'Calendar',
+    path: '/dashboard/calendar',
+    icon: CalendarDays,
+    requiredPermissions: ['calendar:read'],
   },
   {
     label: 'Financials & Invoices',

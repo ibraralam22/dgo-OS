@@ -16,6 +16,7 @@ import { OpportunitiesModule } from './modules/opportunities/opportunities.modul
 import { QuotationsModule } from './modules/quotations/quotations.module';
 import { ProjectsModule } from './modules/projects/projects.module';
 import { TasksModule } from './modules/tasks/tasks.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { TasksModule } from './modules/tasks/tasks.module';
     QuotationsModule,
     ProjectsModule,
     TasksModule,
+    CalendarModule,
   ],
   controllers: [AppController],
   providers: [
