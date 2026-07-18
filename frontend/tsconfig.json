@@ -18,8 +18,21 @@
         "name": "next"
       }
     ],
-    "paths": {
-      "@/*": ["./src/*"]
+   "paths": {
+      "@app/*": ["./src/app/*"],
+      "@models/*": ["./src/models/*"],
+      "@hooks/*": ["./src/hooks/*"],
+      "@customTypes/*": ["./src/types/*"],
+      "@components/*": ["./src/components/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@services/*": ["./src/services/*"],
+      "@query/*": ["./src/data/*"],
+      "@lib/*": ["./src/lib/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@store/*": ["./src/store/*"],
+      "@assets/*": ["./src/assets/*"],
+      "@src/*": ["./src/*"],
+      "@public/*": ["./public/*"]
     }
   },
   "include": [

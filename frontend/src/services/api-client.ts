@@ -76,6 +76,12 @@ apiClient.interceptors.response.use(
     // ── 401 Unauthorized ──────────────────────────────────────────────────────
     // Session expired or invalid token — clear state and redirect.
     if (status === 401) {
+      const isLoginRequest = error.config?.url?.includes('/auth/login');
+      if (isLoginRequest) {
+        toast.error('Invalid email or password.');
+        return Promise.reject(error);
+      }
+
       const logout = useAuthStore.getState().logout;
       logout();
       toast.error('Your session has expired. Please sign in again.');

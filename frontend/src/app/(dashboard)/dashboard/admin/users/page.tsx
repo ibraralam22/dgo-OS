@@ -222,15 +222,6 @@ export default function UsersPage() {
     },
   });
 
-  const updateRoleMutation = useMutation({
-    mutationFn: ({ id, roleName }: { id: string; roleName: string }) =>
-      usersApi.updateRole(id, roleName),
-    onSuccess: () => {
-      toast.success('Role updated successfully.');
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      setRoleUser(null);
-    },
-  });
 
   const removeMutation = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
@@ -284,6 +275,7 @@ export default function UsersPage() {
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search name or email…"
             className="pl-9 h-9 text-sm"
+            aria-label="Search users by name or email"
           />
         </div>
 
@@ -292,6 +284,7 @@ export default function UsersPage() {
           value={statusFilter}
           onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          aria-label="Filter by Status"
         >
           <option value="">All Statuses</option>
           <option value="active">Active</option>
@@ -304,6 +297,7 @@ export default function UsersPage() {
           value={roleFilter}
           onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
           className="h-9 rounded-lg border border-border bg-card text-sm text-foreground px-3 focus:outline-none focus:ring-2 focus:ring-primary/50 cursor-pointer"
+          aria-label="Filter by Role"
         >
           <option value="">All Roles</option>
           {roles.map((r) => <option key={r} value={r}>{r}</option>)}
@@ -410,6 +404,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={meta.page <= 1}
                 className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
@@ -420,6 +415,7 @@ export default function UsersPage() {
                 onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                 disabled={meta.page >= meta.totalPages}
                 className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                aria-label="Next page"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>

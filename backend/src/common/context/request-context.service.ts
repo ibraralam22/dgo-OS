@@ -22,7 +22,21 @@ export class RequestContextService {
     return this.getStore()?.tenantId || null;
   }
 
+  setTenantId(tenantId: string) {
+    const store = this.getStore();
+    if (store) {
+      store.tenantId = tenantId;
+    }
+  }
+
   getUserId(): string | null {
     return this.getStore()?.userId || null;
+  }
+
+  setUserId(userId: string) {
+    const store = this.getStore();
+    if (store) {
+      store.userId = userId;
+    }
   }
 }

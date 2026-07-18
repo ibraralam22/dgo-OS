@@ -64,8 +64,9 @@ export class AuthController {
     );
     const ip = req.ip;
     const ua = req.headers['user-agent'];
+    const requestedOrgId = req.headers['x-tenant-id'] as string | undefined;
 
-    const result = await this.authService.login(user, ip, ua);
+    const result = await this.authService.login(user, ip, ua, requestedOrgId);
 
     this.setRefreshCookie(res, result.refreshToken);
     const responsePayload = { ...result } as Partial<AuthSessionResponse>;
@@ -91,8 +92,9 @@ export class AuthController {
 
     const ip = req.ip;
     const ua = req.headers['user-agent'];
+    const requestedOrgId = req.headers['x-tenant-id'] as string | undefined;
 
-    const result = await this.authService.rotateSession(token, ip, ua);
+    const result = await this.authService.rotateSession(token, ip, ua, requestedOrgId);
 
     this.setRefreshCookie(res, result.refreshToken);
     const responsePayload = { ...result } as Partial<AuthSessionResponse>;

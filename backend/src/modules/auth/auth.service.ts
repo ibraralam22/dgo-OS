@@ -80,8 +80,9 @@ export class AuthService {
     user: { id: string },
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
   ): Promise<AuthSessionResponse> {
-    return this.createSession(user.id, uuidv4(), ipAddress, userAgent);
+    return this.createSession(user.id, uuidv4(), ipAddress, userAgent, requestedOrgId);
   }
 
   /**
@@ -92,6 +93,7 @@ export class AuthService {
     tokenFamilyId: string,
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
   ): Promise<AuthSessionResponse> {
     const userOrgs = await this.prisma.userOrganization.findMany({
       where: { userId, deletedAt: null },
@@ -113,8 +115,14 @@ export class AuthService {
       );
     }
 
-    // Default active context to the first mapped organization
-    const activeOrgMapping = userOrgs[0];
+    // Support tenant switching: find the requested organization if user belongs to it, otherwise default to first
+    let activeOrgMapping = userOrgs.find(
+      (uo) => uo.organizationId === requestedOrgId,
+    );
+    if (!activeOrgMapping) {
+      activeOrgMapping = userOrgs[0];
+    }
+
     const roleName = activeOrgMapping.role.name;
     const permissions = activeOrgMapping.role.rolePermissions.map(
       (rp) => rp.permission.code,
@@ -184,6 +192,7 @@ export class AuthService {
     refreshToken: string,
     ipAddress?: string,
     userAgent?: string,
+    requestedOrgId?: string,
   ): Promise<AuthSessionResponse> {
     const hash = this.hashToken(refreshToken);
 
@@ -238,6 +247,7 @@ export class AuthService {
       session.tokenFamilyId,
       ipAddress,
       userAgent,
+      requestedOrgId,
     );
   }
 
