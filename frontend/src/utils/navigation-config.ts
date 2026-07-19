@@ -11,6 +11,7 @@ import {
   Shield,
   CheckSquare,
   CalendarDays,
+  BarChart3,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -74,6 +75,12 @@ export const navigationItems: NavItem[] = [
     path: '/dashboard/tickets',
     icon: HelpCircle,
     requiredPermissions: ['tickets:read'],
+  },
+  {
+    label: 'Reports & Analytics',
+    path: '/dashboard/reports',
+    icon: BarChart3,
+    requiredPermissions: ['reports:read'],
   },
   {
     label: 'User Directory',

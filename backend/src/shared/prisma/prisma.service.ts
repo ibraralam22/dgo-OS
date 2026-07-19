@@ -74,6 +74,7 @@ export class PrismaService
               'Payment',
               'Ticket',
               'TicketComment',
+              'SavedReport',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {

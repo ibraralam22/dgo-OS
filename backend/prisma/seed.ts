@@ -39,6 +39,8 @@ async function main() {
     { code: 'tasks:write', description: 'Create, update, and delete tasks' },
     { code: 'calendar:read', description: 'View calendar events and attendees' },
     { code: 'calendar:write', description: 'Create, edit, and delete own calendar events' },
+    { code: 'reports:read', description: 'View analytics reports' },
+    { code: 'reports:write', description: 'Save custom report layouts' },
   ];
 
   console.log('Locking in permissions...');
@@ -85,6 +87,8 @@ async function main() {
         'tasks:write',
         'calendar:read',
         'calendar:write',
+        'reports:read',
+        'reports:write',
       ],
     },
     {
@@ -107,6 +111,7 @@ async function main() {
         'billing:write',
         'tickets:read',
         'tickets:write',
+        'reports:read',
       ],
     },
     {
