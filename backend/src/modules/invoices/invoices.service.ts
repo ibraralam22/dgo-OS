@@ -69,39 +69,24 @@ export class InvoicesService {
   // ─── Get KPIs ────────────────────────────────────────────────────────────────
 
   async getKpis(orgId: string) {
-    const activeInvoices = await this.prisma.invoice.findMany({
-      where: { organizationId: orgId, deletedAt: null, status: { not: 'VOID' } },
-      select: {
-        total: true,
-        amountPaid: true,
-        balanceDue: true,
-        status: true,
-      },
-    });
-
-    let totalBilled = 0;
-    let totalPaid = 0;
-    let totalOutstanding = 0;
-    let overdueCount = 0;
-
-    for (const inv of activeInvoices) {
-      const tot = Number(inv.total);
-      const paid = Number(inv.amountPaid);
-      const due = Number(inv.balanceDue);
-
-      totalBilled += tot;
-      totalPaid += paid;
-      totalOutstanding += due;
-
-      if (inv.status === 'OVERDUE') {
-        overdueCount++;
-      }
-    }
+    const [totals, overdueCount] = await Promise.all([
+      this.prisma.invoice.aggregate({
+        where: { organizationId: orgId, deletedAt: null, status: { not: 'VOID' } },
+        _sum: {
+          total: true,
+          amountPaid: true,
+          balanceDue: true,
+        },
+      }),
+      this.prisma.invoice.count({
+        where: { organizationId: orgId, deletedAt: null, status: 'OVERDUE' },
+      }),
+    ]);
 
     return {
-      totalBilled,
-      totalPaid,
-      totalOutstanding,
+      totalBilled: Number(totals._sum.total || 0),
+      totalPaid: Number(totals._sum.amountPaid || 0),
+      totalOutstanding: Number(totals._sum.balanceDue || 0),
       overdueCount,
     };
   }

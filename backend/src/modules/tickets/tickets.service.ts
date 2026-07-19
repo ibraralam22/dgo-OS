@@ -82,46 +82,36 @@ export class TicketsService {
     return { total, data };
   }
 
-  // ─── Get Summary KPIs ────────────────────────────────────────────────────────
-
   async getSummary(orgId: string, userRole: string, userEmail: string) {
     const where: any = { organizationId: orgId, deletedAt: null };
 
     if (userRole === 'ClientContact') {
       const accountId = await this.getClientAccountId(userEmail, orgId);
       if (!accountId) {
-        return { openTickets: 0, inProgressTickets: 0, resolvedTickets: 0, closedTickets: 0 };
+        return { openTickets: 0, inProgressTickets: 0, resolvedTickets: 0, closedTickets: 0, highPriorityUnresolved: 0 };
       }
       where.accountId = accountId;
     }
 
-    const tickets = await this.prisma.ticket.findMany({
-      where,
-      select: { status: true, priority: true },
-    });
-
-    let openCount = 0;
-    let inProgressCount = 0;
-    let resolvedCount = 0;
-    let closedCount = 0;
-    let highPriorityUnresolved = 0;
-
-    for (const t of tickets) {
-      if (t.status === 'OPEN') openCount++;
-      if (t.status === 'IN_PROGRESS') inProgressCount++;
-      if (t.status === 'RESOLVED') resolvedCount++;
-      if (t.status === 'CLOSED') closedCount++;
-
-      if (['OPEN', 'IN_PROGRESS'].includes(t.status) && ['HIGH', 'URGENT'].includes(t.priority)) {
-        highPriorityUnresolved++;
-      }
-    }
+    const [openTickets, inProgressTickets, resolvedTickets, closedTickets, highPriorityUnresolved] = await Promise.all([
+      this.prisma.ticket.count({ where: { ...where, status: 'OPEN' } }),
+      this.prisma.ticket.count({ where: { ...where, status: 'IN_PROGRESS' } }),
+      this.prisma.ticket.count({ where: { ...where, status: 'RESOLVED' } }),
+      this.prisma.ticket.count({ where: { ...where, status: 'CLOSED' } }),
+      this.prisma.ticket.count({
+        where: {
+          ...where,
+          status: { in: ['OPEN', 'IN_PROGRESS'] },
+          priority: { in: ['HIGH', 'URGENT'] },
+        },
+      }),
+    ]);
 
     return {
-      openTickets: openCount,
-      inProgressTickets: inProgressCount,
-      resolvedTickets: resolvedCount,
-      closedTickets: closedCount,
+      openTickets,
+      inProgressTickets,
+      resolvedTickets,
+      closedTickets,
       highPriorityUnresolved,
     };
   }

@@ -14,21 +14,22 @@ export class DashboardService {
       }).format(val);
     };
 
-    // Calculate active deals metrics
-    const activeDeals = await this.prisma.opportunity.findMany({
+    // Calculate active deals metrics using database aggregation
+    const activeDealsAggregate = await this.prisma.opportunity.aggregate({
       where: {
         deletedAt: null,
         stage: {
           in: ['DISCOVERY', 'PROPOSAL', 'NEGOTIATION'],
         },
       },
-      select: {
+      _sum: {
         amount: true,
       },
+      _count: true,
     });
 
-    const dealsCount = activeDeals.length;
-    const totalAmount = activeDeals.reduce((sum: number, item: any) => sum + Number(item.amount), 0);
+    const dealsCount = activeDealsAggregate._count;
+    const totalAmount = Number(activeDealsAggregate._sum.amount || 0);
 
     // Calculate leads count
     const totalLeads = await this.prisma.lead.count({

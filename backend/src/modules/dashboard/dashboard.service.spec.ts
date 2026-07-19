@@ -11,6 +11,7 @@ const mockPrisma = {
   },
   opportunity: {
     findMany: jest.fn().mockResolvedValue([]),
+    aggregate: jest.fn().mockResolvedValue({ _count: 0, _sum: { amount: null } }),
   },
   lead: {
     count: jest.fn().mockResolvedValue(0),
