@@ -69,6 +69,8 @@ export class PrismaService
               'Task',
               'CalendarEvent',
               'EventAttendee',
+              'Invoice',
+              'InvoiceLineItem',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {

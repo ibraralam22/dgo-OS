@@ -29,6 +29,7 @@ model Organization {
   quotations         Quotation[]
   tasks              Task[]
   calendarEvents     CalendarEvent[]
+  invoices           Invoice[]
 
   @@map("organizations")
 }
@@ -59,6 +60,7 @@ model User {
   createdTasks       Task[]             @relation("TaskCreator")
   createdEvents      CalendarEvent[]    @relation("EventCreator")
   eventAttendances   EventAttendee[]    @relation("EventAttendances")
+  createdInvoices    Invoice[]          @relation("InvoiceCreator")
 
   @@map("users")
 }
@@ -254,6 +256,7 @@ model Account {
   subsidiaries    Account[]      @relation("AccountHierarchy")
   contacts        Contact[]
   opportunities   Opportunity[]
+  invoices        Invoice[]
 
   @@index([organizationId])
   @@index([parentAccountId])
@@ -325,6 +328,7 @@ model Opportunity {
   owner            User?             @relation(fields: [ownerId], references: [id])
   onboardings      ProjectOnboarding[]
   quotations       Quotation[]
+  invoices         Invoice[]
 
   @@index([organizationId])
   @@index([accountId])
@@ -411,6 +415,7 @@ model Quotation {
   opportunity        Opportunity      @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
   approvedBy         User?            @relation("QuotationApproval", fields: [approvedById], references: [id])
   lineItems          QuoteLineItem[]
+  invoices           Invoice[]
 
   @@index([organizationId])
   @@index([opportunityId])
@@ -550,3 +555,70 @@ model EventAttendee {
   @@index([userId])
   @@map("event_attendees")
 }
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  PARTIALLY_PAID
+  OVERDUE
+  VOID
+}
+
+model Invoice {
+  id                 String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId     String            @map("organization_id") @db.Uuid
+  accountId          String            @map("account_id") @db.Uuid
+  invoiceNumber      String            @map("invoice_number") @db.VarChar(100)
+  issueDate          DateTime          @map("issue_date") @db.Date
+  dueDate            DateTime          @map("due_date") @db.Date
+  status             InvoiceStatus     @default(DRAFT)
+  
+  discountPercentage Decimal           @default(0.00) @map("discount_percentage") @db.Decimal(5, 2)
+  taxPercentage      Decimal           @default(0.00) @map("tax_percentage") @db.Decimal(5, 2)
+  subtotal           Decimal           @default(0.00) @map("subtotal") @db.Decimal(18, 4)
+  total              Decimal           @default(0.00) @map("total") @db.Decimal(18, 4)
+  amountPaid         Decimal           @default(0.00) @map("amount_paid") @db.Decimal(18, 4)
+  balanceDue         Decimal           @default(0.00) @map("balance_due") @db.Decimal(18, 4)
+  currency           String            @default("USD") @db.VarChar(10)
+  memo               String?           @db.Text
+  
+  opportunityId      String?           @map("opportunity_id") @db.Uuid
+  quotationId        String?           @map("quotation_id") @db.Uuid
+  createdById        String            @map("created_by_id") @db.Uuid
+  
+  createdAt          DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt          DateTime          @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt          DateTime?         @map("deleted_at") @db.Timestamptz(6)
+
+  // Relations
+  organization       Organization      @relation(fields: [organizationId], references: [id])
+  account            Account           @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  opportunity        Opportunity?      @relation(fields: [opportunityId], references: [id], onDelete: SetNull)
+  quotation          Quotation?        @relation(fields: [quotationId], references: [id], onDelete: SetNull)
+  createdBy          User              @relation("InvoiceCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  lineItems          InvoiceLineItem[]
+
+  @@unique([organizationId, invoiceNumber])
+  @@index([organizationId])
+  @@index([accountId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model InvoiceLineItem {
+  id          String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  invoiceId   String   @map("invoice_id") @db.Uuid
+  itemName    String   @map("item_name") @db.VarChar(255)
+  description String?  @map("description") @db.Text
+  quantity    Int      @map("quantity")
+  unitPrice   Decimal  @map("unit_price") @db.Decimal(18, 4)
+  subtotal    Decimal  @map("subtotal") @db.Decimal(18, 4)
+
+  // Relations
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@index([invoiceId])
+  @@map("invoice_line_items")
+}
+
