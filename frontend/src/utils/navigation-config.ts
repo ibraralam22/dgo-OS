@@ -9,6 +9,9 @@ import {
   CreditCard,
   LucideIcon,
   Shield,
+  CheckSquare,
+  CalendarDays,
+  BarChart3,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -50,6 +53,18 @@ export const navigationItems: NavItem[] = [
     requiredPermissions: ['projects:read'],
   },
   {
+    label: 'Tasks',
+    path: '/dashboard/tasks',
+    icon: CheckSquare,
+    requiredPermissions: ['tasks:read'],
+  },
+  {
+    label: 'Calendar',
+    path: '/dashboard/calendar',
+    icon: CalendarDays,
+    requiredPermissions: ['calendar:read'],
+  },
+  {
     label: 'Financials & Invoices',
     path: '/dashboard/billing',
     icon: CreditCard,
@@ -60,6 +75,12 @@ export const navigationItems: NavItem[] = [
     path: '/dashboard/tickets',
     icon: HelpCircle,
     requiredPermissions: ['tickets:read'],
+  },
+  {
+    label: 'Reports & Analytics',
+    path: '/dashboard/reports',
+    icon: BarChart3,
+    requiredPermissions: ['reports:read'],
   },
   {
     label: 'User Directory',

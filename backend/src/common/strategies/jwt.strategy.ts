@@ -4,6 +4,8 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../context/request-context.service';
 
+import { PrismaService } from '../../shared/prisma/prisma.service';
+
 interface JwtPayload {
   sub: string;
   email: string;
@@ -17,6 +19,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   constructor(
     configService: ConfigService,
     private readonly requestContextService: RequestContextService,
+    private readonly prisma: PrismaService,
   ) {
     const secret = configService.get<string>('JWT_SECRET');
     if (!secret) {
@@ -30,9 +33,19 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  validate(payload: JwtPayload) {
+  async validate(payload: JwtPayload) {
     if (!payload || !payload.sub) {
       throw new UnauthorizedException('Token credentials validation failed');
+    }
+
+    // Verify user exists and is active in the database to prevent unexpired tokens of suspended/inactive users from accessing APIs
+    const user = await this.prisma.user.findUnique({
+      where: { id: payload.sub },
+      select: { status: true },
+    });
+
+    if (!user || user.status !== 'active') {
+      throw new UnauthorizedException('User account is inactive or suspended');
     }
 
     this.requestContextService.setUserId(payload.sub);

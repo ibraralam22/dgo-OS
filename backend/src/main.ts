@@ -23,8 +23,20 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '10mb', extended: true }));
   app.use(cookieParser());
 
-  // Security Headers using Helmet
-  app.use(helmet());
+  // Security Headers using Helmet with standard CSP configurations
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'", "'unsafe-inline'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'blob:'],
+          connectSrc: ["'self'"],
+        },
+      },
+    }),
+  );
 
   // Configure Production-Grade CORS origin controls
   const allowedOriginsRaw = configService.get<string>('ALLOWED_ORIGINS');

@@ -13,4 +13,9 @@ export const systemApi = {
     const { data } = await apiClient.get<SystemStatusResponse>('/system/status');
     return data;
   },
+
+  async getAuditLogs(params: { resourceId?: string }): Promise<{ data: any[] }> {
+    const { data } = await apiClient.get<{ data: any[] }>('/audit-logs', { params });
+    return data;
+  },
 };

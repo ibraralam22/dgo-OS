@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@components/ui/button';
 import { Input } from '@components/ui/input';
 import { Label } from '@components/ui/label';
@@ -15,7 +15,19 @@ export default function LoginPage() {
   const login = useAuthStore((state) => state.login);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [loading, setLoading] = useState(false);
+
+  // Load saved credentials on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem('remembered_email');
+    const savedPassword = localStorage.getItem('remembered_password');
+    if (savedEmail && savedPassword) {
+      setEmail(savedEmail);
+      setPassword(savedPassword);
+      setRememberMe(true);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,6 +39,16 @@ export default function LoginPage() {
 
     try {
       const response = await authApi.login({ email, password });
+      
+      // Save or clear credentials based on checkbox state
+      if (rememberMe) {
+        localStorage.setItem('remembered_email', email);
+        localStorage.setItem('remembered_password', password);
+      } else {
+        localStorage.removeItem('remembered_email');
+        localStorage.removeItem('remembered_password');
+      }
+
       login(response.user, response.accessToken, response.organizations);
       toast.success('Welcome back!');
       router.push('/dashboard');
@@ -78,6 +100,21 @@ export default function LoginPage() {
               disabled={loading}
             />
           </div>
+        </div>
+
+        {/* Remember Credentials Checkbox */}
+        <div className="flex items-center gap-2 pl-0.5 mt-1">
+          <input
+            id="remember-me"
+            type="checkbox"
+            checked={rememberMe}
+            onChange={(e) => setRememberMe(e.target.checked)}
+            className="h-4 w-4 rounded border-border text-primary bg-background focus:ring-2 focus:ring-primary/50 cursor-pointer"
+            disabled={loading}
+          />
+          <label htmlFor="remember-me" className="text-xs font-medium text-muted-foreground select-none cursor-pointer">
+            Remember Me
+          </label>
         </div>
 
         <Button type="submit" variant="primary" className="w-full mt-2" disabled={loading}>

@@ -5,6 +5,16 @@ import { Pool } from 'pg';
 import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../../common/context/request-context.service';
 
+/**
+ * PrismaService: Handles database pooling and query lifecycle extensions.
+ * 
+ * SECURITY WARNING ON RLS LIMITATIONS:
+ * - Row-Level Security (RLS) organization filters are automatically enforced on standard 
+ *   Prisma Client model methods (e.g. findFirst, findMany, create, update, delete, etc.).
+ * - CRITICAL: Prisma query extensions do NOT intercept raw DB commands ($queryRaw, $executeRaw, etc.).
+ *   Any custom raw SQL operations MUST manually bind and sanitize `organizationId` parameters
+ *   to prevent cross-tenant database leakage!
+ */
 @Injectable()
 export class PrismaService
   extends PrismaClient
@@ -45,7 +55,27 @@ export class PrismaService
             const tenantId = requestContextService.getTenantId();
 
             // Set of models that enforce row-level organization filters
-            const tenantBoundModels = ['AuditLog', 'UserOrganization', 'Role', 'Lead'];
+            const tenantBoundModels = [
+              'AuditLog',
+              'UserOrganization',
+              'Role',
+              'Lead',
+              'Account',
+              'Contact',
+              'Opportunity',
+              'ProjectOnboarding',
+              'OnboardingMilestone',
+              'Quotation',
+              'Task',
+              'CalendarEvent',
+              'EventAttendee',
+              'Invoice',
+              'InvoiceLineItem',
+              'Payment',
+              'Ticket',
+              'TicketComment',
+              'SavedReport',
+            ];
 
             if (tenantId && tenantBoundModels.includes(model)) {
               const queryArgs = (args || {}) as any;
@@ -96,7 +126,10 @@ export class PrismaService
                 queryArgs.where = queryArgs.where || {};
                 queryArgs.where.organizationId = tenantId;
                 const ctx = Prisma.getExtensionContext(this);
-                return (ctx as any).findFirst(queryArgs);
+                const modelDelegate = typeof (ctx as any).findFirst === 'function'
+                  ? ctx
+                  : (ctx as any)[model.charAt(0).toLowerCase() + model.slice(1)];
+                return modelDelegate.findFirst(queryArgs);
               }
 
               // create: inject organizationId directly into data payload
@@ -124,13 +157,16 @@ export class PrismaService
                 const queryArgs = (args || {}) as any;
                 const existingWhere = queryArgs.where || {};
                 const ctx = Prisma.getExtensionContext(this);
+                const modelDelegate = typeof (ctx as any).findFirst === 'function'
+                  ? ctx
+                  : (ctx as any)[model.charAt(0).toLowerCase() + model.slice(1)];
                 const checkArgs = {
                   where: {
                     ...existingWhere,
                     organizationId: tenantId,
                   },
                 };
-                const record = await (ctx as any).findFirst(checkArgs);
+                const record = await modelDelegate.findFirst(checkArgs);
                 if (!record) {
                   throw new NotFoundException(`Record not found or access denied`);
                 }
