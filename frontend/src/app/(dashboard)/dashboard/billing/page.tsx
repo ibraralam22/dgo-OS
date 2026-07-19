@@ -3,6 +3,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { invoicesApi, Invoice, InvoiceStatus, CreateInvoiceInput, UpdateInvoiceInput, InvoiceLineItemInput } from '@services/invoices-api';
+import { paymentsApi, Payment, PaymentMethod, PaymentStatus, CreatePaymentInput } from '@services/payments-api';
 import { clientsApi } from '@services/clients-api';
 import { useAuthStore } from '@store/auth-store';
 import { useDebounce } from '@hooks/use-debounce';
@@ -29,6 +30,9 @@ import {
   PlusCircle,
   MinusCircle,
   Eye,
+  Activity,
+  User,
+  ShieldAlert,
 } from 'lucide-react';
 
 const STATUS_CONFIG: Record<
@@ -43,23 +47,53 @@ const STATUS_CONFIG: Record<
   VOID:           { label: 'Void',           color: 'text-zinc-500',    bg: 'bg-zinc-500/5',    border: 'border-zinc-500/10',    dot: 'bg-zinc-600'    },
 };
 
+const PAYMENT_STATUS_CONFIG: Record<
+  PaymentStatus,
+  { label: string; color: string; border: string; bg: string }
+> = {
+  SUCCESS:  { label: 'Success',  color: 'text-emerald-400', border: 'border-emerald-500/20', bg: 'bg-emerald-500/5' },
+  FAILED:   { label: 'Failed',   color: 'text-rose-400',    border: 'border-rose-500/20',    bg: 'bg-rose-500/5'    },
+  VOID:     { label: 'Voided',   color: 'text-slate-400',   border: 'border-slate-500/20',   bg: 'bg-slate-500/5'   },
+  REFUNDED: { label: 'Refunded', color: 'text-blue-400',    border: 'border-blue-500/20',    bg: 'bg-blue-500/5'    },
+};
+
+const PAYMENT_METHOD_LABELS: Record<PaymentMethod, string> = {
+  BANK_TRANSFER: 'Bank Wire Transfer',
+  CREDIT_CARD:   'Credit Card',
+  CHECK:         'Check Payment',
+  CASH:          'Cash',
+  STRIPE:        'Stripe Checkout',
+  OTHER:         'Other Method',
+};
+
 export default function BillingPage() {
   const { user } = useAuthStore();
   const queryClient = useQueryClient();
 
+  const [activeTab, setActiveTab] = useState<'invoices' | 'payments'>('invoices');
+
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
   const [filterAccount, setFilterAccount] = useState('');
+  const [filterMethod, setFilterMethod] = useState('');
   const [page, setPage] = useState(1);
 
   const debouncedSearch = useDebounce(search, 300);
 
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  const [selectedPayment, setSelectedPayment] = useState<Payment | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [paymentInvoiceId, setPaymentInvoiceId] = useState<string | null>(null);
+
+  // Record Payment fields
   const [paymentAmount, setPaymentAmount] = useState('');
+  const [paymentDate, setPaymentDate] = useState(new Date().toISOString().split('T')[0]);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('BANK_TRANSFER');
+  const [paymentRef, setPaymentRef] = useState('');
+  const [paymentNotes, setPaymentNotes] = useState('');
 
   const hasWrite = user?.permissions?.includes('billing:write') ?? false;
+  const isAdmin = ['SuperAdmin', 'TenantAdmin'].includes(user?.role || '');
 
   // Queries
   const { data: kpis } = useQuery({
@@ -68,7 +102,7 @@ export default function BillingPage() {
     staleTime: 30_000,
   });
 
-  const { data: invoicesResponse, isLoading } = useQuery({
+  const { data: invoicesResponse, isLoading: isInvoicesLoading } = useQuery({
     queryKey: ['invoices-list', page, debouncedSearch, filterStatus, filterAccount],
     queryFn: () =>
       invoicesApi.list({
@@ -78,6 +112,20 @@ export default function BillingPage() {
         status: filterStatus || undefined,
         accountId: filterAccount || undefined,
       }),
+    enabled: activeTab === 'invoices',
+  });
+
+  const { data: paymentsResponse, isLoading: isPaymentsLoading } = useQuery({
+    queryKey: ['payments-list', page, debouncedSearch, filterStatus, filterMethod],
+    queryFn: () =>
+      paymentsApi.list({
+        page,
+        limit: 15,
+        search: debouncedSearch || undefined,
+        status: filterStatus || undefined,
+        paymentMethod: filterMethod || undefined,
+      }),
+    enabled: activeTab === 'payments',
   });
 
   const { data: accountsResponse } = useQuery({
@@ -86,10 +134,12 @@ export default function BillingPage() {
   });
 
   const invoices = invoicesResponse?.data || [];
+  const payments = paymentsResponse?.data || [];
   const accounts = accountsResponse?.data || [];
 
   const invalidate = () => {
     queryClient.invalidateQueries({ queryKey: ['invoices-list'] });
+    queryClient.invalidateQueries({ queryKey: ['payments-list'] });
     queryClient.invalidateQueries({ queryKey: ['invoice-kpis'] });
   };
 
@@ -108,18 +158,32 @@ export default function BillingPage() {
   });
 
   const recordPaymentMutation = useMutation({
-    mutationFn: ({ id, amount }: { id: string; amount: number }) =>
-      invoicesApi.recordPayment(id, amount),
-    onSuccess: (updated) => {
+    mutationFn: (data: CreatePaymentInput) => paymentsApi.create(data),
+    onSuccess: (newPayment) => {
       invalidate();
-      toast.success('Payment recorded successfully');
+      toast.success('Payment transaction recorded successfully');
       setPaymentInvoiceId(null);
       setPaymentAmount('');
-      if (selectedInvoice?.id === updated.id) {
-        setSelectedInvoice(updated);
+      setPaymentRef('');
+      setPaymentNotes('');
+      if (selectedInvoice?.id === newPayment.invoiceId) {
+        // Fetch updated invoice
+        invoicesApi.get(newPayment.invoiceId).then(setSelectedInvoice);
       }
     },
     onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to record payment'),
+  });
+
+  const voidPaymentMutation = useMutation({
+    mutationFn: (id: string) => paymentsApi.void(id),
+    onSuccess: (updatedPayment) => {
+      invalidate();
+      toast.success('Payment transaction voided successfully');
+      if (selectedPayment?.id === updatedPayment.id) {
+        setSelectedPayment(updatedPayment);
+      }
+    },
+    onError: (err: any) => toast.error(err?.response?.data?.message || 'Failed to void payment'),
   });
 
   const deleteMutation = useMutation({
@@ -141,7 +205,7 @@ export default function BillingPage() {
           <h1 className="text-2xl font-black tracking-tight text-foreground">Financials & Invoices</h1>
           <p className="text-xs text-muted-foreground">Manage client billing, create invoices, track outstanding balances, and log payments.</p>
         </div>
-        {hasWrite && (
+        {hasWrite && activeTab === 'invoices' && (
           <Button onClick={() => setIsCreating(true)} className="gap-2 shrink-0" size="sm">
             <Plus className="h-4 w-4" />
             New Invoice
@@ -167,120 +231,256 @@ export default function BillingPage() {
         ))}
       </div>
 
+      {/* Tab Switcher */}
+      <div className="flex border-b border-border/20">
+        <button
+          onClick={() => { setActiveTab('invoices'); setSearch(''); setFilterStatus(''); setPage(1); }}
+          className={cn(
+            'px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer',
+            activeTab === 'invoices' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Invoices Registry
+        </button>
+        <button
+          onClick={() => { setActiveTab('payments'); setSearch(''); setFilterStatus(''); setPage(1); }}
+          className={cn(
+            'px-5 py-2.5 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer',
+            activeTab === 'payments' ? 'border-primary text-foreground' : 'border-transparent text-muted-foreground hover:text-foreground'
+          )}
+        >
+          Payments Ledger
+        </button>
+      </div>
+
       {/* Filters Toolbar */}
       <div className="glass-card border border-border/25 rounded-2xl p-4 bg-card/30 flex flex-col md:flex-row gap-3 items-center justify-between shadow-sm">
         <div className="relative w-full md:max-w-xs">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input placeholder="Search Invoice #..." value={search} onChange={(e) => setSearch(e.target.value)} className="pl-9" />
+          <Input
+            placeholder={activeTab === 'invoices' ? 'Search Invoice #...' : 'Search Reference #...'}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-9"
+          />
         </div>
 
         <div className="flex flex-wrap gap-2 items-center w-full md:w-auto">
-          <select
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-40"
-          >
-            <option value="">All Statuses</option>
-            {Object.keys(STATUS_CONFIG).map((st) => (
-              <option key={st} value={st}>{STATUS_CONFIG[st as InvoiceStatus].label}</option>
-            ))}
-          </select>
+          {activeTab === 'invoices' ? (
+            <>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-40"
+              >
+                <option value="">All Statuses</option>
+                {Object.keys(STATUS_CONFIG).map((st) => (
+                  <option key={st} value={st}>{STATUS_CONFIG[st as InvoiceStatus].label}</option>
+                ))}
+              </select>
 
-          <select
-            value={filterAccount}
-            onChange={(e) => setFilterAccount(e.target.value)}
-            className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-48"
-          >
-            <option value="">All Clients</option>
-            {accounts.map((ac) => (
-              <option key={ac.id} value={ac.id}>{ac.name}</option>
-            ))}
-          </select>
+              <select
+                value={filterAccount}
+                onChange={(e) => setFilterAccount(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-48"
+              >
+                <option value="">All Clients</option>
+                {accounts.map((ac) => (
+                  <option key={ac.id} value={ac.id}>{ac.name}</option>
+                ))}
+              </select>
+            </>
+          ) : (
+            <>
+              <select
+                value={filterStatus}
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-40"
+              >
+                <option value="">All Statuses</option>
+                {Object.keys(PAYMENT_STATUS_CONFIG).map((st) => (
+                  <option key={st} value={st}>{PAYMENT_STATUS_CONFIG[st as PaymentStatus].label}</option>
+                ))}
+              </select>
+
+              <select
+                value={filterMethod}
+                onChange={(e) => setFilterMethod(e.target.value)}
+                className="h-9 rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer text-muted-foreground w-48"
+              >
+                <option value="">All Methods</option>
+                {Object.keys(PAYMENT_METHOD_LABELS).map((m) => (
+                  <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m as PaymentMethod]}</option>
+                ))}
+              </select>
+            </>
+          )}
         </div>
       </div>
 
-      {/* Invoice Table Grid */}
-      {isLoading ? (
-        <div className="h-64 flex flex-col items-center justify-center gap-2">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <span className="text-xs text-muted-foreground">Loading billing registry...</span>
-        </div>
-      ) : invoices.length === 0 ? (
-        <div className="h-48 border border-dashed border-border/20 rounded-2xl flex flex-col items-center justify-center gap-2 text-muted-foreground">
-          <CreditCard className="h-8 w-8 opacity-30 animate-pulse" />
-          <span className="text-xs">No invoices found</span>
-        </div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl border border-border/20 bg-card/20 shadow-sm">
-          <table className="w-full text-left border-collapse text-xs">
-            <thead>
-              <tr className="border-b border-border/20 bg-muted/20 text-muted-foreground font-black uppercase tracking-wider select-none">
-                <th className="px-5 py-3">Invoice #</th>
-                <th className="px-5 py-3">Client</th>
-                <th className="px-5 py-3">Issue Date</th>
-                <th className="px-5 py-3">Due Date</th>
-                <th className="px-5 py-3">Total Amount</th>
-                <th className="px-5 py-3">Balance Due</th>
-                <th className="px-5 py-3">Status</th>
-                <th className="px-5 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border/10 font-medium">
-              {invoices.map((inv) => {
-                const statusCfg = STATUS_CONFIG[inv.status];
-                const overdue = inv.status === 'OVERDUE' || (inv.status !== 'PAID' && inv.status !== 'VOID' && new Date(inv.dueDate) < new Date());
+      {/* Tables content */}
+      {activeTab === 'invoices' ? (
+        isInvoicesLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-xs text-muted-foreground">Loading invoices registry...</span>
+          </div>
+        ) : invoices.length === 0 ? (
+          <div className="h-48 border border-dashed border-border/20 rounded-2xl flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <CreditCard className="h-8 w-8 opacity-30 animate-pulse" />
+            <span className="text-xs">No invoices found</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border/20 bg-card/20 shadow-sm">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border/20 bg-muted/20 text-muted-foreground font-black uppercase tracking-wider select-none">
+                  <th className="px-5 py-3">Invoice #</th>
+                  <th className="px-5 py-3">Client</th>
+                  <th className="px-5 py-3">Issue Date</th>
+                  <th className="px-5 py-3">Due Date</th>
+                  <th className="px-5 py-3">Total Amount</th>
+                  <th className="px-5 py-3">Balance Due</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/10 font-medium">
+                {invoices.map((inv) => {
+                  const statusCfg = STATUS_CONFIG[inv.status];
+                  const overdue = inv.status === 'OVERDUE' || (inv.status !== 'PAID' && inv.status !== 'VOID' && new Date(inv.dueDate) < new Date());
 
-                return (
-                  <tr
-                    key={inv.id}
-                    onClick={() => setSelectedInvoice(inv)}
-                    className="hover:bg-accent/10 transition-colors cursor-pointer"
-                  >
-                    <td className="px-5 py-3.5 font-bold text-foreground">
-                      {inv.invoiceNumber}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <div className="flex flex-col">
-                        <span className="font-extrabold text-foreground">{inv.account.name}</span>
-                        <span className="text-[10px] text-muted-foreground font-mono">{inv.account.domain}</span>
-                      </div>
-                    </td>
-                    <td className="px-5 py-3.5 text-muted-foreground">
-                      {new Date(inv.issueDate).toLocaleDateString()}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={cn('flex items-center gap-1', overdue ? 'text-rose-400 font-bold' : 'text-muted-foreground')}>
-                        {new Date(inv.dueDate).toLocaleDateString()}
-                        {overdue && ' ⚠'}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 font-extrabold text-foreground">
-                      {inv.currency} {Number(inv.total).toFixed(2)}
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={cn('font-bold', Number(inv.balanceDue) > 0 ? 'text-amber-400' : 'text-emerald-400')}>
-                        {inv.currency} {Number(inv.balanceDue).toFixed(2)}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5">
-                      <span className={cn('px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider', statusCfg.color, statusCfg.border, statusCfg.bg)}>
-                        {statusCfg.label}
-                      </span>
-                    </td>
-                    <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
-                      <button
-                        onClick={() => setSelectedInvoice(inv)}
-                        className="text-muted-foreground hover:text-foreground hover:bg-accent p-1.5 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <Eye className="h-4 w-4" />
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                  return (
+                    <tr
+                      key={inv.id}
+                      onClick={() => setSelectedInvoice(inv)}
+                      className="hover:bg-accent/10 transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 font-bold text-foreground">
+                        {inv.invoiceNumber}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex flex-col">
+                          <span className="font-extrabold text-foreground">{inv.account.name}</span>
+                          <span className="text-[10px] text-muted-foreground font-mono">{inv.account.domain}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 text-muted-foreground">
+                        {new Date(inv.issueDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn('flex items-center gap-1', overdue ? 'text-rose-400 font-bold' : 'text-muted-foreground')}>
+                          {new Date(inv.dueDate).toLocaleDateString()}
+                          {overdue && ' ⚠'}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 font-extrabold text-foreground">
+                        {inv.currency} {Number(inv.total).toFixed(2)}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn('font-bold', Number(inv.balanceDue) > 0 ? 'text-amber-400' : 'text-emerald-400')}>
+                          {inv.currency} {Number(inv.balanceDue).toFixed(2)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn('px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider', statusCfg.color, statusCfg.border, statusCfg.bg)}>
+                          {statusCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setSelectedInvoice(inv)}
+                          className="text-muted-foreground hover:text-foreground hover:bg-accent p-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
+      ) : (
+        isPaymentsLoading ? (
+          <div className="h-64 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            <span className="text-xs text-muted-foreground">Loading transaction ledger...</span>
+          </div>
+        ) : payments.length === 0 ? (
+          <div className="h-48 border border-dashed border-border/20 rounded-2xl flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <DollarSign className="h-8 w-8 opacity-30 animate-pulse" />
+            <span className="text-xs">No transactions recorded</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-2xl border border-border/20 bg-card/20 shadow-sm">
+            <table className="w-full text-left border-collapse text-xs">
+              <thead>
+                <tr className="border-b border-border/20 bg-muted/20 text-muted-foreground font-black uppercase tracking-wider select-none">
+                  <th className="px-5 py-3">Transaction ID</th>
+                  <th className="px-5 py-3">Invoice #</th>
+                  <th className="px-5 py-3">Client</th>
+                  <th className="px-5 py-3">Amount</th>
+                  <th className="px-5 py-3">Date</th>
+                  <th className="px-5 py-3">Method</th>
+                  <th className="px-5 py-3">Reference</th>
+                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border/10 font-medium">
+                {payments.map((pm) => {
+                  const methodCfg = PAYMENT_METHOD_LABELS[pm.paymentMethod];
+                  const statusCfg = PAYMENT_STATUS_CONFIG[pm.status];
+
+                  return (
+                    <tr
+                      key={pm.id}
+                      onClick={() => setSelectedPayment(pm)}
+                      className="hover:bg-accent/10 transition-colors cursor-pointer"
+                    >
+                      <td className="px-5 py-3.5 font-mono text-muted-foreground text-[10px]">
+                        {pm.id.slice(0, 8)}...
+                      </td>
+                      <td className="px-5 py-3.5 font-bold text-foreground">
+                        {pm.invoice.invoiceNumber}
+                      </td>
+                      <td className="px-5 py-3.5 font-extrabold text-foreground">
+                        {pm.invoice.account.name}
+                      </td>
+                      <td className="px-5 py-3.5 font-black text-emerald-400">
+                        ${Number(pm.amount).toFixed(2)}
+                      </td>
+                      <td className="px-5 py-3.5 text-muted-foreground">
+                        {new Date(pm.paymentDate).toLocaleDateString()}
+                      </td>
+                      <td className="px-5 py-3.5 text-muted-foreground font-semibold">
+                        {methodCfg}
+                      </td>
+                      <td className="px-5 py-3.5 font-mono text-foreground text-[10px]">
+                        {pm.referenceNumber || '—'}
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <span className={cn('px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider', statusCfg.color, statusCfg.border, statusCfg.bg)}>
+                          {statusCfg.label}
+                        </span>
+                      </td>
+                      <td className="px-5 py-3.5 text-right" onClick={(e) => e.stopPropagation()}>
+                        <button
+                          onClick={() => setSelectedPayment(pm)}
+                          className="text-muted-foreground hover:text-foreground hover:bg-accent p-1.5 rounded-lg transition-colors cursor-pointer"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )
       )}
 
       {/* Invoice Detail Drawer */}
@@ -289,9 +489,20 @@ export default function BillingPage() {
           invoice={selectedInvoice}
           hasWrite={hasWrite}
           onClose={() => setSelectedInvoice(null)}
-          onDelete={(id) => deleteMutation.mutate(id)}
-          onUpdateStatus={(id, status) => patchStatusMutation.mutate({ id, status })}
-          onOpenPayment={(id) => setPaymentInvoiceId(id)}
+          onDelete={(id: string) => deleteMutation.mutate(id)}
+          onUpdateStatus={(id: string, status: 'SENT' | 'VOID' | 'OVERDUE') => patchStatusMutation.mutate({ id, status })}
+          onOpenPayment={(id: string) => setPaymentInvoiceId(id)}
+        />
+      )}
+
+      {/* Payment Detail Drawer */}
+      {selectedPayment && (
+        <PaymentDrawer
+          payment={selectedPayment}
+          isAdmin={isAdmin}
+          hasWrite={hasWrite}
+          onClose={() => setSelectedPayment(null)}
+          onVoid={(id: string) => voidPaymentMutation.mutate(id)}
         />
       )}
 
@@ -299,18 +510,65 @@ export default function BillingPage() {
       {paymentInvoiceId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-background/70 backdrop-blur-sm" onClick={() => setPaymentInvoiceId(null)} />
-          <div className="relative w-full max-w-sm glass-card bg-background border border-border/30 rounded-2xl shadow-2xl z-10 p-6 animate-in zoom-in-95 duration-150">
+          <div className="relative w-full max-w-md glass-card bg-background border border-border/30 rounded-2xl shadow-2xl z-10 p-6 animate-in zoom-in-95 duration-150">
             <h3 className="text-sm font-black text-foreground mb-4">Record Client Payment</h3>
-            <div className="flex flex-col gap-3">
-              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Amount Paid ($)</label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0.01"
-                placeholder="Enter recorded payment amount"
-                value={paymentAmount}
-                onChange={(e) => setPaymentAmount(e.target.value)}
-              />
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Amount Paid ($) *</label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  placeholder="Enter payment amount"
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payment Date *</label>
+                  <Input
+                    type="date"
+                    value={paymentDate}
+                    onChange={(e) => setPaymentDate(e.target.value)}
+                  />
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Payment Method *</label>
+                  <select
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    className="h-9 w-full rounded-lg border border-border bg-card text-xs font-semibold px-3 focus:outline-none cursor-pointer"
+                  >
+                    {Object.keys(PAYMENT_METHOD_LABELS).map((m) => (
+                      <option key={m} value={m}>{PAYMENT_METHOD_LABELS[m as PaymentMethod]}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Reference / Transaction Number</label>
+                <Input
+                  placeholder="Check #, Wire TXID, Stripe ID"
+                  value={paymentRef}
+                  onChange={(e) => setPaymentRef(e.target.value)}
+                />
+              </div>
+
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Notes / Memo</label>
+                <textarea
+                  placeholder="Optional billing or transaction comments..."
+                  value={paymentNotes}
+                  onChange={(e) => setPaymentNotes(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-lg border border-border bg-card px-3 py-2 text-xs text-foreground resize-none focus:outline-none focus:ring-1 focus:ring-primary"
+                />
+              </div>
+
               <div className="flex gap-2 mt-2">
                 <Button
                   onClick={() => {
@@ -319,7 +577,14 @@ export default function BillingPage() {
                       toast.error('Please enter a valid amount');
                       return;
                     }
-                    recordPaymentMutation.mutate({ id: paymentInvoiceId, amount: amt });
+                    recordPaymentMutation.mutate({
+                      invoiceId: paymentInvoiceId,
+                      amount: amt,
+                      paymentDate: new Date(paymentDate).toISOString(),
+                      paymentMethod,
+                      referenceNumber: paymentRef.trim() || undefined,
+                      notes: paymentNotes.trim() || undefined,
+                    });
                   }}
                   className="flex-1"
                   size="sm"
@@ -351,7 +616,7 @@ export default function BillingPage() {
   );
 }
 
-// ─── Invoice Detail Drawer ───────────────────────────────────────────────────
+// ─── Invoice Detail Drawer ────────────────────────────────────────────────────
 
 function InvoiceDrawer({
   invoice,
@@ -526,6 +791,117 @@ function InvoiceDrawer({
                   Void Invoice
                 </Button>
               </>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Payment Detail Drawer ───────────────────────────────────────────────────
+
+function PaymentDrawer({
+  payment,
+  isAdmin,
+  hasWrite,
+  onClose,
+  onVoid,
+}: {
+  payment: Payment;
+  isAdmin: boolean;
+  hasWrite: boolean;
+  onClose: () => void;
+  onVoid: (id: string) => void;
+}) {
+  const statusCfg = PAYMENT_STATUS_CONFIG[payment.status];
+  const methodLabel = PAYMENT_METHOD_LABELS[payment.paymentMethod];
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end">
+      <div className="absolute inset-0 bg-background/60 backdrop-blur-xs cursor-pointer" onClick={onClose} />
+      <div className="relative w-full max-w-md bg-background border-l border-border/25 shadow-2xl flex flex-col h-full z-10 glass-card animate-in slide-in-from-right duration-200">
+        
+        {/* Header */}
+        <div className="px-6 py-5 border-b border-border/20 flex items-start justify-between">
+          <div className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <span className={cn('px-2.5 py-0.5 rounded-full border text-[10px] font-black uppercase tracking-wider', statusCfg.color, statusCfg.border, statusCfg.bg)}>
+                {statusCfg.label}
+              </span>
+              <span className="text-[10px] font-mono text-muted-foreground">TxID: {payment.id}</span>
+            </div>
+            <h3 className="text-base font-black text-foreground mt-1">Payment Receipt</h3>
+          </div>
+          <Button variant="ghost" size="sm" onClick={onClose} className="h-8 w-8 rounded-lg shrink-0">
+            <X className="h-4 w-4" />
+          </Button>
+        </div>
+
+        {/* Scrollable details */}
+        <div className="flex-1 overflow-y-auto p-6 flex flex-col gap-5 text-xs text-foreground">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Client Name</span>
+            <p className="font-extrabold text-sm text-foreground">{payment.invoice.account.name}</p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 border-t border-b border-border/10 py-4">
+            <div>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Amount Paid</span>
+              <p className="font-black text-emerald-400 text-base mt-0.5">${Number(payment.amount).toFixed(2)}</p>
+            </div>
+            <div>
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Payment Date</span>
+              <p className="font-bold text-foreground mt-1">{new Date(payment.paymentDate).toLocaleDateString()}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-semibold">Payment Method:</span>
+              <span className="font-extrabold">{methodLabel}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-semibold">Reference #:</span>
+              <span className="font-mono font-bold text-[10px]">{payment.referenceNumber || '—'}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground font-semibold">Invoice reference:</span>
+              <span className="font-bold">{payment.invoice.invoiceNumber}</span>
+            </div>
+          </div>
+
+          {payment.notes && (
+            <div className="p-3 bg-muted/10 border border-border/20 rounded-xl mt-2 flex flex-col gap-1">
+              <span className="text-[9px] text-muted-foreground uppercase font-black tracking-widest">Internal Transaction notes</span>
+              <p className="text-[11px] leading-relaxed mt-0.5">{payment.notes}</p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-auto border-t border-border/10 pt-4">
+            <User className="h-3.5 w-3.5" />
+            <span>Recorded by {payment.createdBy.firstName} {payment.createdBy.lastName} ({payment.createdBy.email})</span>
+          </div>
+        </div>
+
+        {/* Void transaction block */}
+        {hasWrite && payment.status === 'SUCCESS' && (
+          <div className="px-6 py-4 border-t border-border/15">
+            {!isAdmin ? (
+              <p className="text-[9px] text-rose-400/80 font-bold flex items-center gap-1">
+                <ShieldAlert className="h-3.5 w-3.5" /> Administrator permissions are required to void payments.
+              </p>
+            ) : (
+              <button
+                onClick={() => {
+                  if (confirm('Void this transaction? This reversing ledger action cannot be undone.')) {
+                    onVoid(payment.id);
+                  }
+                }}
+                className="w-full flex items-center justify-center gap-2 text-[10px] font-bold text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 py-2 rounded-lg border border-rose-500/20 transition-colors cursor-pointer"
+              >
+                <Ban className="h-3.5 w-3.5" /> Void Payment Transaction
+              </button>
             )}
           </div>
         )}

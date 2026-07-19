@@ -18,6 +18,7 @@ import { ProjectsModule } from './modules/projects/projects.module';
 import { TasksModule } from './modules/tasks/tasks.module';
 import { CalendarModule } from './modules/calendar/calendar.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     TasksModule,
     CalendarModule,
     InvoicesModule,
+    PaymentsModule,
   ],
   controllers: [AppController],
   providers: [

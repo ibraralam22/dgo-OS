@@ -71,6 +71,7 @@ export class PrismaService
               'EventAttendee',
               'Invoice',
               'InvoiceLineItem',
+              'Payment',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {
