@@ -16,6 +16,11 @@ model Organization {
   updatedAt         DateTime           @updatedAt @db.Timestamptz(6)
   deletedAt         DateTime?          @db.Timestamptz(6)
   
+  phone             String?            @db.VarChar(50)
+  address           String?            @db.Text
+  defaultCurrency   String             @default("USD") @map("default_currency") @db.VarChar(10)
+  timezone          String             @default("UTC") @db.VarChar(100)
+  
   // Relations
   userOrganizations  UserOrganization[]
   auditLogs          AuditLog[]
