@@ -21,14 +21,20 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 
+import { ConfigModule, ConfigService } from '@nestjs/config';
+
 @Module({
   imports: [
-    ThrottlerModule.forRoot([
-      {
-        ttl: 60_000, // 1 minute
-        limit: 100,  // 100 requests per IP per minute
-      },
-    ]),
+    ThrottlerModule.forRootAsync({
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) => [
+        {
+          ttl: config.get<number>('THROTTLE_TTL') || 60_000,
+          limit: config.get<number>('THROTTLE_LIMIT') || 100,
+        },
+      ],
+    }),
     SharedModule,
     RequestContextModule,
     AuthModule,
