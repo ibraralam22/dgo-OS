@@ -72,6 +72,8 @@ export class PrismaService
               'Invoice',
               'InvoiceLineItem',
               'Payment',
+              'Ticket',
+              'TicketComment',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {

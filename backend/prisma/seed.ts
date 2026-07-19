@@ -30,6 +30,7 @@ async function main() {
     { code: 'billing:read', description: 'View billing invoices and payments' },
     { code: 'billing:write', description: 'Create, modify, and process billing invoices' },
     { code: 'tickets:read', description: 'View service tickets' },
+    { code: 'tickets:write', description: 'Create and update service tickets' },
     { code: 'iam:read', description: 'View users and role assignments in tenant' },
     { code: 'iam:write', description: 'Create, update, and assign roles to users in tenant' },
     { code: 'projects:read', description: 'Read project records and milestones' },
@@ -75,6 +76,7 @@ async function main() {
         'billing:read',
         'billing:write',
         'tickets:read',
+        'tickets:write',
         'iam:read',
         'iam:write',
         'projects:read',
@@ -103,12 +105,14 @@ async function main() {
         'calendar:write',
         'billing:read',
         'billing:write',
+        'tickets:read',
+        'tickets:write',
       ],
     },
     {
       name: 'ClientContact',
       description: 'External client portal login user',
-      permissions: ['tickets:read', 'clients:read'],
+      permissions: ['tickets:read', 'tickets:write', 'clients:read'],
     },
   ];
 

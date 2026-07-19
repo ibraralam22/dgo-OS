@@ -31,6 +31,8 @@ model Organization {
   calendarEvents     CalendarEvent[]
   invoices           Invoice[]
   payments           Payment[]
+  tickets            Ticket[]
+  ticketComments     TicketComment[]
 
   @@map("organizations")
 }
@@ -63,6 +65,9 @@ model User {
   eventAttendances   EventAttendee[]    @relation("EventAttendances")
   createdInvoices    Invoice[]          @relation("InvoiceCreator")
   createdPayments    Payment[]          @relation("PaymentCreator")
+  createdTickets     Ticket[]           @relation("TicketCreator")
+  assignedTickets    Ticket[]           @relation("TicketAssignee")
+  ticketComments     TicketComment[]    @relation("CommentUser")
 
   @@map("users")
 }
@@ -259,6 +264,7 @@ model Account {
   contacts        Contact[]
   opportunities   Opportunity[]
   invoices        Invoice[]
+  tickets         Ticket[]
 
   @@index([organizationId])
   @@index([parentAccountId])
@@ -667,5 +673,75 @@ model Payment {
   @@index([status])
   @@map("payments")
 }
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum TicketCategory {
+  BILLING
+  TECHNICAL
+  GENERAL
+  ACCOUNT
+}
+
+model Ticket {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  accountId      String         @map("account_id") @db.Uuid
+  subject        String         @db.VarChar(255)
+  description    String         @db.Text
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  category       TicketCategory @default(GENERAL)
+
+  createdById    String         @map("created_by_id") @db.Uuid
+  assignedToId   String?        @map("assigned_to_id") @db.Uuid
+
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime       @updatedAt @map("updated_at") @db.Timestamptz(6)
+  deletedAt      DateTime?      @map("deleted_at") @db.Timestamptz(6)
+
+  // Relations
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  account        Account        @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  createdBy      User           @relation("TicketCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo     User?          @relation("TicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  comments       TicketComment[]
+
+  @@index([organizationId])
+  @@index([accountId])
+  @@index([status])
+  @@index([priority])
+  @@map("tickets")
+}
+
+model TicketComment {
+  id             String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  organizationId String         @map("organization_id") @db.Uuid
+  ticketId       String         @map("ticket_id") @db.Uuid
+  userId         String         @map("user_id") @db.Uuid
+  comment        String         @db.Text
+  createdAt      DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  // Relations
+  organization   Organization   @relation(fields: [organizationId], references: [id])
+  ticket         Ticket         @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  user           User           @relation("CommentUser", fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId])
+  @@map("ticket_comments")
+}
+
 
 
