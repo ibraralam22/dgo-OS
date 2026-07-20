@@ -75,6 +75,7 @@ export class PrismaService
               'Ticket',
               'TicketComment',
               'SavedReport',
+              'AuditLog',
             ];
 
             if (tenantId && tenantBoundModels.includes(model)) {
