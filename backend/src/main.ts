@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { json, urlencoded } from 'express';
 import cookieParser from 'cookie-parser';
 import helmet from 'helmet';
+import compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { LoggingInterceptor } from './common/interceptors/logger.interceptor';
@@ -23,6 +24,9 @@ async function bootstrap() {
   app.use(urlencoded({ limit: '10mb', extended: true }));
   app.use(cookieParser());
 
+  // Compress response bodies
+  app.use(compression());
+
   // Security Headers using Helmet with standard CSP configurations
   app.use(
     helmet({
@@ -33,6 +37,7 @@ async function bootstrap() {
           styleSrc: ["'self'", "'unsafe-inline'"],
           imgSrc: ["'self'", 'data:', 'blob:'],
           connectSrc: ["'self'"],
+          'report-uri': [`/api/v1/security/csp-report`],
         },
       },
     }),

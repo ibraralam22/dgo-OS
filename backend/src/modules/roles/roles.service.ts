@@ -7,17 +7,43 @@ import {
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
+import { CacheService } from '../../shared/cache/cache.service';
 
-const SYSTEM_ROLES = ['SuperAdmin', 'TenantAdmin', 'SalesRepresentative', 'ClientContact'];
+interface RoleListItem {
+  id: string;
+  name: string;
+  description: string | null;
+  organizationId: string | null;
+  isSystem: boolean;
+  permissionCount: number;
+  userCount: number;
+}
+
+const SYSTEM_ROLES = [
+  'SuperAdmin',
+  'TenantAdmin',
+  'SalesRepresentative',
+  'ClientContact',
+];
 
 @Injectable()
 export class RolesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+  ) {}
 
   /**
    * Returns all roles visible to the organization (system roles + tenant custom roles).
    */
-  async listRoles(organizationId: string) {
+  async listRoles(organizationId: string): Promise<RoleListItem[]> {
+    // Try to get from cache first
+    const cacheKey = `roles-list:${organizationId}`;
+    const cached = await this.cacheService.get<RoleListItem[]>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const roles = await this.prisma.role.findMany({
       where: {
         OR: [
@@ -47,7 +73,7 @@ export class RolesService {
       ],
     });
 
-    return roles.map((role) => ({
+    const result: RoleListItem[] = roles.map((role) => ({
       id: role.id,
       name: role.name,
       description: role.description,
@@ -56,6 +82,11 @@ export class RolesService {
       permissionCount: role.rolePermissions.length,
       userCount: role._count.userOrganizations,
     }));
+
+    // Cache for 30 minutes (roles don't change frequently)
+    await this.cacheService.set(cacheKey, result, 1800);
+
+    return result;
   }
 
   /**
@@ -114,8 +145,12 @@ export class RolesService {
     const trimmedName = dto.name.trim();
 
     // 1. Block reserving default system role names
-    if (SYSTEM_ROLES.some((sr) => sr.toLowerCase() === trimmedName.toLowerCase())) {
-      throw new BadRequestException(`Role name "${trimmedName}" is reserved for system roles.`);
+    if (
+      SYSTEM_ROLES.some((sr) => sr.toLowerCase() === trimmedName.toLowerCase())
+    ) {
+      throw new BadRequestException(
+        `Role name "${trimmedName}" is reserved for system roles.`,
+      );
     }
 
     // 2. Ensure name uniqueness within the organization (custom roles + system roles)
@@ -131,7 +166,9 @@ export class RolesService {
     });
 
     if (existing) {
-      throw new BadRequestException(`A role named "${trimmedName}" already exists in your organization.`);
+      throw new BadRequestException(
+        `A role named "${trimmedName}" already exists in your organization.`,
+      );
     }
 
     // 3. Verify permissions existence
@@ -143,7 +180,9 @@ export class RolesService {
     });
 
     if (permissions.length !== dto.permissionCodes.length) {
-      throw new BadRequestException('One or more selected permission codes are invalid.');
+      throw new BadRequestException(
+        'One or more selected permission codes are invalid.',
+      );
     }
 
     // 4. Create Role and RolePermissions in transaction
@@ -231,8 +270,12 @@ export class RolesService {
       trimmedName = dto.name.trim();
 
       // Block reserving default system role names
-      if (SYSTEM_ROLES.some((sr) => sr.toLowerCase() === trimmedName.toLowerCase())) {
-        throw new BadRequestException(`Role name "${trimmedName}" is reserved for system roles.`);
+      if (
+        SYSTEM_ROLES.some((sr) => sr.toLowerCase() === trimmedName.toLowerCase())
+      ) {
+        throw new BadRequestException(
+          `Role name "${trimmedName}" is reserved for system roles.`,
+        );
       }
 
       // Ensure new name is unique
@@ -248,7 +291,9 @@ export class RolesService {
         },
       });
       if (duplicate) {
-        throw new BadRequestException(`A role named "${trimmedName}" already exists in your organization.`);
+        throw new BadRequestException(
+          `A role named "${trimmedName}" already exists in your organization.`,
+        );
       }
     }
 
@@ -262,7 +307,9 @@ export class RolesService {
         },
       });
       if (permissions.length !== dto.permissionCodes.length) {
-        throw new BadRequestException('One or more selected permission codes are invalid.');
+        throw new BadRequestException(
+          'One or more selected permission codes are invalid.',
+        );
       }
     }
 

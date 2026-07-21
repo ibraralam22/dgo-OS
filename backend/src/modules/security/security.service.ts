@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 @Injectable()
 export class SecurityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly requestContextService: RequestContextService,
+  ) {}
 
   // ─── Chronological Audit Log Queries ────────────────────────────────────────
 
@@ -53,13 +57,12 @@ export class SecurityService {
       ];
     }
 
-    // Execute query
-    const [logs, total] = await Promise.all([
+    const [data, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
+        orderBy: { createdAt: 'desc' },
         include: {
           user: {
             select: {
@@ -75,44 +78,14 @@ export class SecurityService {
     ]);
 
     return {
-      logs,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
-  }
-
-  // ─── Active User Sessions Management ────────────────────────────────────────
-
-  async getSessions(orgId: string) {
-    // Validate organization ID
-    if (!orgId || typeof orgId !== 'string') {
-      throw new BadRequestException('Invalid organization ID');
-    }
-
-    return this.prisma.userSession.findMany({
-      where: {
-        user: {
-          userOrganizations: {
-            some: {
-              organizationId: orgId,
-            },
-          },
-        },
-      },
-      orderBy: { createdAt: 'desc' },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
-          },
-        },
-      },
-    });
   }
 
   async revokeSession(orgId: string, sessionId: string, actorId: string) {
@@ -169,6 +142,7 @@ export class SecurityService {
           targetUserId: session.userId,
           isRevoked: true,
         },
+        requestId: this.requestContextService.getRequestId(),
       },
     });
 

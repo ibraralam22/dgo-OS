@@ -4,6 +4,7 @@ import { AsyncLocalStorage } from 'async_hooks';
 export interface RequestStore {
   tenantId?: string;
   userId?: string;
+  requestId?: string;
 }
 
 @Injectable()
@@ -37,6 +38,17 @@ export class RequestContextService {
     const store = this.getStore();
     if (store) {
       store.userId = userId;
+    }
+  }
+
+  getRequestId(): string | null {
+    return this.getStore()?.requestId || null;
+  }
+
+  setRequestId(requestId: string) {
+    const store = this.getStore();
+    if (store) {
+      store.requestId = requestId;
     }
   }
 }
