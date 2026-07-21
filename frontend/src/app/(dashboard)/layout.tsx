@@ -7,7 +7,7 @@ import { Navbar } from '../../components/layout/navbar';
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
     <AuthGuard>
-      <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
+      <div className="flex h-screen w-screen overflow-visible bg-background text-foreground">
         {/* Sidebar Container - Client component rendered inside Server Layout */}
         <Sidebar />
 

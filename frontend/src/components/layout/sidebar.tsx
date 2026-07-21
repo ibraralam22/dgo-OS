@@ -30,7 +30,7 @@ export function Sidebar() {
 
   return (
     <aside
-      className={`relative h-screen bg-card border-r border-border transition-all duration-300 flex flex-col ${
+      className={`relative h-screen bg-card border-r border-border transition-all duration-300 flex flex-col overflow-visible z-50 ${
         isCollapsed ? 'w-20' : 'w-64'
       }`}
     >
@@ -59,29 +59,37 @@ export function Sidebar() {
 
       {/* Navigation List */}
       <nav 
-        className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto"
+        className={`sidebar-nav flex-1 px-4 py-6 space-y-1.5 ${
+          isCollapsed ? 'overflow-visible' : 'overflow-y-auto overflow-x-visible'
+        }`}
         aria-label="Main Navigation"
       >
         {filteredNavigation.map((item) => {
           const Icon = item.icon;
-          const isActive = pathname === item.path || pathname.startsWith(item.path + '/');
+          const isActive = pathname === item.path;
 
           return (
             <Link
               key={item.path}
               href={item.path}
+              title={isCollapsed ? item.label : undefined}
               aria-label={isCollapsed ? item.label : undefined}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
+              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary relative min-w-0 group/nav-item ${
                 isActive
                   ? 'bg-primary/10 text-primary border-l-2 border-primary pl-2.5'
                   : 'text-muted-foreground hover:text-foreground hover:bg-accent/40'
               }`}
             >
               <Icon 
-                className={`h-5 w-5 transition-transform ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-105'}`} 
+                className={`h-5 w-5 flex-shrink-0 transition-transform ${isActive ? 'text-primary' : 'text-muted-foreground group-hover:text-foreground group-hover:scale-105'}`} 
                 aria-hidden="true" 
               />
-              {!isCollapsed && <span className="truncate">{item.label}</span>}
+              {!isCollapsed && <span className="truncate text-left flex-1">{item.label}</span>}
+              {isCollapsed && (
+                <span className="absolute left-full ml-3 px-2.5 py-1.5 bg-primary text-primary-foreground text-xs font-medium rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-[9999]">
+                  {item.label}
+                </span>
+              )}
             </Link>
           );
         })}
