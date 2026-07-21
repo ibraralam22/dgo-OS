@@ -9,6 +9,8 @@ const API_URL = process.env.API_URL;
 
 const nextConfig: NextConfig = {
   reactCompiler: true,
+  cacheComponents: true,
+
 
   /**
    * Proxy: /api/proxy/:path* → <backend>/api/v1/:path*

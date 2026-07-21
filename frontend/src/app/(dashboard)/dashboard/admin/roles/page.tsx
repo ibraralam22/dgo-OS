@@ -9,137 +9,17 @@ import {
   Shield,
   Plus,
   Search,
-  MoreHorizontal,
-  Edit,
-  Trash2,
-  Loader2,
-  Lock,
   Users,
   CheckCircle,
+  Loader2,
 } from 'lucide-react';
 import { Button } from '@components/ui/button';
 import { Input } from '@components/ui/input';
 import { cn } from '@utils/cn';
 import RoleModal from '@components/roles/role-modal';
-
-// Badge for roles category
-function TypeBadge({ isSystem }: { isSystem: boolean }) {
-  return isSystem ? (
-    <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 text-violet-400 border border-violet-500/25 px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase">
-      <Lock className="h-2.5 w-2.5" /> System
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-bold tracking-wide uppercase">
-      Custom
-    </span>
-  );
-}
-
-// Actions menu for individual roles
-function ActionMenu({
-  role,
-  canWrite,
-  onEdit,
-  onRemove,
-}: {
-  role: RoleListItem;
-  canWrite: boolean;
-  onEdit: (r: RoleListItem) => void;
-  onRemove: (r: RoleListItem) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  if (!canWrite) return null;
-
-  return (
-    <div className="relative">
-      <button
-        id={`role-action-${role.id}`}
-        onClick={() => setOpen((v) => !v)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        aria-label="Role actions"
-        aria-haspopup="true"
-        aria-expanded={open}
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-40 glass-card rounded-xl border border-border/60 shadow-xl overflow-hidden">
-          {role.isSystem ? (
-            <div className="px-3 py-2 text-[11px] text-muted-foreground bg-accent/20 italic">
-              Read-only System Role
-            </div>
-          ) : (
-            <>
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  onEdit(role);
-                }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground hover:bg-accent/50 transition-colors"
-              >
-                <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Role
-              </button>
-              <div className="border-t border-border/30 mx-3" />
-              <button
-                onClick={() => {
-                  setOpen(false);
-                  onRemove(role);
-                }}
-                className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
-              >
-                <Trash2 className="h-3.5 w-3.5" /> Delete Role
-              </button>
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// Confirmation Dialog component
-function ConfirmDialog({
-  title,
-  message,
-  confirmLabel,
-  destructive,
-  loading,
-  onConfirm,
-  onCancel,
-}: {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  destructive?: boolean;
-  loading?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card rounded-2xl border border-border/60 shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
-        <h3 className="text-base font-bold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
-        <div className="flex justify-end gap-2 mt-2">
-          <Button variant="outline" size="sm" onClick={onCancel} disabled={loading}>
-            Cancel
-          </Button>
-          <Button
-            variant={destructive ? 'destructive' : 'primary'}
-            size="sm"
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
+import { TypeBadge } from '@components/roles/role-badges';
+import { ActionMenu } from '@components/roles/action-menu';
+import { ConfirmDialog } from '@components/roles/confirm-dialog';
 
 export default function RolesPage() {
   const { user: me } = useAuthStore();
@@ -206,7 +86,7 @@ export default function RolesPage() {
   };
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
@@ -267,7 +147,7 @@ export default function RolesPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm" aria-label="Roles List">
             <thead>
-              <tr className="border-b border-border/40">
+              <tr className="border-b border-border/40 select-none bg-muted/20">
                 <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">
                   Role Name
                 </th>
