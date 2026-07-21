@@ -30,7 +30,8 @@ export class TenantMiddleware implements NestMiddleware {
     const store: any = {
       tenantId,
       userId: undefined, // Will be set by JWT auth strategy later
-      requestId
+      requestId,
+      ipAddress: req.ip
     };
 
     // Run request handlers nested inside the storage context

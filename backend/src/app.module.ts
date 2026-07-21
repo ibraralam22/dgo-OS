@@ -1,30 +1,33 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { LoggingInterceptor } from './common/interceptors/logger.interceptor';
 import { AppController } from './app.controller';
-import { AppService } = require('./app.service');
-import { SharedModule } = require('./shared/shared.module');
-import { RequestContextModule } = require('./common/context/request-context.module');
-import { TenantMiddleware } = require('./common/context/tenant.middleware');
-import { RequestIdMiddleware } = require('./common/middleware/request-id.middleware');
-import { AuthModule } = require('./modules/auth/auth.module');
-import { UsersModule } = require('./modules/users/users.module');
-import { RolesModule } = require('./modules/roles/roles.module');
-import { DashboardModule } = require('./modules/dashboard/dashboard.module');
-import { LeadsModule } = require('./modules/leads/leads.module');
-import { ClientsModule } = require('./modules/clients/clients.module');
-import { OpportunitiesModule } = require('./modules/opportunities/opportunities.module');
-import { QuotationsModule } = require('./modules/quotations/quotations.module');
-import { ProjectsModule } = require('./modules/projects/projects.module');
-import { TasksModule } = require('./modules/tasks/tasks.module');
-import { CalendarModule } = require('./modules/calendar/calendar.module');
-import { InvoicesModule } = require('./modules/invoices/invoices.module');
-import { PaymentsModule } = require('./modules/payments/payments.module');
-import { TicketsModule } = require('./modules/tickets/tickets.module');
-import { ReportsModule } = require('./modules/reports/reports.module');
-import { SecurityModule } = require('./modules/security/security.module');
-import { ConfigModule } = require('@nestjs/config');
-import { ConfigService } = require('@nestjs/config');
+import { AppService } from './app.service';
+import { SharedModule } from './shared/shared.module';
+import { RequestContextModule } from './common/context/request-context.module';
+import { TenantMiddleware } from './common/context/tenant.middleware';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { AuthModule } from './modules/auth/auth.module';
+import { UsersModule } from './modules/users/users.module';
+import { RolesModule } from './modules/roles/roles.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { LeadsModule } from './modules/leads/leads.module';
+import { ClientsModule } from './modules/clients/clients.module';
+import { OpportunitiesModule } from './modules/opportunities/opportunities.module';
+import { QuotationsModule } from './modules/quotations/quotations.module';
+import { ProjectsModule } from './modules/projects/projects.module';
+import { TasksModule } from './modules/tasks/tasks.module';
+import { CalendarModule } from './modules/calendar/calendar.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
+import { PaymentsModule } from './modules/payments/payments.module';
+import { TicketsModule } from './modules/tickets/tickets.module';
+import { ReportsModule } from './modules/reports/reports.module';
+import { SecurityModule } from './modules/security/security.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { ConfigModule } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
+
 
 @Module({
   imports: [
@@ -63,6 +66,10 @@ import { ConfigService } = require('@nestjs/config');
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
+    },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
     },
   ],
 })

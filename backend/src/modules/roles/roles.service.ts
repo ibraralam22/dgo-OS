@@ -9,7 +9,7 @@ import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { CacheService } from '../../shared/cache/cache.service';
 
-interface RoleListItem {
+export interface RoleListItem {
   id: string;
   name: string;
   description: string | null;

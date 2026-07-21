@@ -13,7 +13,7 @@ import * as bcrypt from 'bcrypt';
 import { AuditLogAction } from '../../shared/constants/audit-log.actions';
 import { AuditLogService } from '../../shared/audit/audit-log.service';
 import { CacheService } from '../../shared/cache/cache.service';
-import { RequestContextService } from '../../context/request-context.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 export interface UserListItem {
   id: string;
@@ -251,8 +251,8 @@ export class UsersService {
       });
 
       await this.auditLogService.createWithContext(
-        actorId,
         organizationId,
+        actorId,
         AuditLogAction.USER_ASSIGN,
         'user',
         user.id,
@@ -278,8 +278,8 @@ export class UsersService {
       });
 
       await this.auditLogService.createWithContext(
-        actorId,
         organizationId,
+        actorId,
         AuditLogAction.USER_CREATE,
         'user',
         user.id,
@@ -371,12 +371,11 @@ export class UsersService {
     }
 
     await this.auditLogService.createWithContext(
-      requesterId,
       organizationId,
+      requesterId,
       AuditLogAction.USER_UPDATE,
       'user',
       userId,
-      actorIp,
       before,
       dto,
     );
@@ -429,12 +428,11 @@ export class UsersService {
     });
 
     await this.auditLogService.createWithContext(
-      actorId,
       organizationId,
+      actorId,
       AuditLogAction.USER_ROLE_CHANGE,
       'user',
       userId,
-      actorIp,
       { role: beforeRole },
       { role: dto.roleName },
     );
@@ -481,12 +479,11 @@ export class UsersService {
     });
 
     await this.auditLogService.createWithContext(
-      actorId,
       organizationId,
+      actorId,
       AuditLogAction.USER_REMOVE,
       'user',
       userId,
-      actorIp,
       null,
       null,
     );

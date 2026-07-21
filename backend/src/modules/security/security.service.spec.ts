@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { SecurityService } from './security.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 const mockPrisma = {
   auditLog: {
@@ -22,6 +23,11 @@ const mockPrisma = {
   }),
 };
 
+const mockRequestContext = {
+  getRequestId: jest.fn(() => 'test-request-id'),
+  getIpAddress: jest.fn(() => '127.0.0.1'),
+};
+
 const ORG_ID = 'org-uuid';
 const ACTOR_ID = 'user-uuid';
 const SESSION_ID = 'session-uuid';
@@ -35,6 +41,7 @@ describe('SecurityService', () => {
       providers: [
         SecurityService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: RequestContextService, useValue: mockRequestContext },
       ],
     }).compile();
 
@@ -57,9 +64,9 @@ describe('SecurityService', () => {
         search: 'login',
       });
 
-      expect(result.logs).toHaveLength(1);
-      expect(result.total).toBe(1);
-      expect(result.totalPages).toBe(1);
+      expect(result.data).toHaveLength(1);
+      expect(result.meta.total).toBe(1);
+      expect(result.meta.totalPages).toBe(1);
       expect(mockPrisma.auditLog.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -203,7 +210,7 @@ describe('SecurityService', () => {
                 },
               },
             },
-          },
+          }),
           orderBy: { createdAt: 'desc' },
           include: {
             user: {
@@ -235,7 +242,7 @@ describe('SecurityService', () => {
                 },
               },
             },
-          },
+          }),
         }),
       );
     });
@@ -269,7 +276,7 @@ describe('SecurityService', () => {
       expect(typeof transactionCallback).toBe('function');
 
       // Verify findFirst was called within transaction
-      expect(transactionCallback.userSession.findFirst).toHaveBeenCalledWith(
+      expect(mockPrisma.userSession.findFirst).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
             id: SESSION_ID,
@@ -285,7 +292,7 @@ describe('SecurityService', () => {
       );
 
       // Verify update was called within transaction
-      expect(transactionCallback.userSession.update).toHaveBeenCalledWith(
+      expect(mockPrisma.userSession.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: SESSION_ID },
           data: { isRevoked: true },
@@ -293,7 +300,7 @@ describe('SecurityService', () => {
       );
 
       // Verify audit log creation was called within transaction
-      expect(transactionCallback.auditLog.create).toHaveBeenCalledWith(
+      expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
             organizationId: ORG_ID,

@@ -8,7 +8,6 @@ import helmet from 'helmet';
 import compression from 'compression';
 import { AppModule } from './app.module';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
-import { LoggingInterceptor } from './common/interceptors/logger.interceptor';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -74,7 +73,6 @@ async function bootstrap() {
 
   // Global Guards, Filters & Interceptors
   app.useGlobalFilters(new HttpExceptionFilter());
-  app.useGlobalInterceptors(new LoggingInterceptor());
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

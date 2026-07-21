@@ -8,7 +8,7 @@ import {
 import { Observable } from 'rxjs';
 import { tap } from 'rxjs/operators';
 import { Request, Response } from 'express';
-import { RequestContextService } from '../../context/request-context.service';
+import { RequestContextService } from '../context/request-context.service';
 
 /**
  * LoggingInterceptor: Logs incoming requests and outgoing responses with

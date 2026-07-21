@@ -2,6 +2,9 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UsersService } from './users.service';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { BadRequestException, ForbiddenException, NotFoundException } from '@nestjs/common';
+import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { CacheService } from '../../shared/cache/cache.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 import * as bcrypt from 'bcrypt';
 jest.mock('bcrypt');
 
@@ -35,11 +38,31 @@ describe('UsersService', () => {
     },
   };
 
+  const mockAuditLog = {
+    createWithContext: jest.fn(),
+  };
+
+  const mockCache = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+  };
+
+  const mockRequestContext = {
+    getTenantId: jest.fn(),
+    getUserId: jest.fn(),
+    getRequestId: jest.fn(),
+    getIpAddress: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         UsersService,
         { provide: PrismaService, useValue: mockPrisma },
+        { provide: AuditLogService, useValue: mockAuditLog },
+        { provide: CacheService, useValue: mockCache },
+        { provide: RequestContextService, useValue: mockRequestContext },
       ],
     }).compile();
 

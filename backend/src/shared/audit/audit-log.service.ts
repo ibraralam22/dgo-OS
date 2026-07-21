@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
-import { RequestContextService } from '../../context/request-context.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 /**
  * AuditLogService: Centralized service for creating audit log entries
@@ -83,7 +83,7 @@ export class AuditLogService {
       action,
       resourceName,
       resourceId,
-      ipAddress,
+      ipAddress || undefined,
       payloadBefore,
       payloadAfter,
     );

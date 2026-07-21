@@ -5,6 +5,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException } from '@nestjs/common';
 import { RequestContextService } from '../../common/context/request-context.service';
+import { CacheService } from '../../shared/cache/cache.service';
 import * as bcrypt from 'bcrypt';
 jest.mock('bcrypt');
 
@@ -20,6 +21,7 @@ describe('AuthService', () => {
     },
     userOrganization: {
       findMany: jest.fn(),
+      findFirst: jest.fn(),
     },
     userSession: {
       findUnique: jest.fn(),
@@ -51,6 +53,12 @@ describe('AuthService', () => {
     getTenantId: jest.fn(),
   };
 
+  const mockCache = {
+    get: jest.fn(),
+    set: jest.fn(),
+    del: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,6 +67,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwt },
         { provide: ConfigService, useValue: mockConfig },
         { provide: RequestContextService, useValue: mockRequestContext },
+        { provide: CacheService, useValue: mockCache },
       ],
     }).compile();
 
@@ -149,6 +158,19 @@ describe('AuthService', () => {
           },
         },
       ]);
+      (prisma.userOrganization.findFirst as jest.Mock).mockResolvedValue({
+        organizationId: 'org-1',
+        role: {
+          name: 'Admin',
+          rolePermissions: [
+            {
+              permission: {
+                code: 'leads:read',
+              },
+            },
+          ],
+        },
+      });
       (prisma.user.findUnique as jest.Mock).mockResolvedValue({
         id: 'user-1',
         email: 'test@dgo.com',

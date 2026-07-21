@@ -88,6 +88,35 @@ export class SecurityService {
     };
   }
 
+  async getSessions(orgId: string) {
+    if (!orgId || typeof orgId !== 'string') {
+      throw new BadRequestException('Invalid organization ID');
+    }
+
+    return this.prisma.userSession.findMany({
+      where: {
+        user: {
+          userOrganizations: {
+            some: {
+              organizationId: orgId,
+            },
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+  }
+
   async revokeSession(orgId: string, sessionId: string, actorId: string) {
     // Validate inputs
     if (!orgId || typeof orgId !== 'string') {
@@ -100,52 +129,54 @@ export class SecurityService {
       throw new BadRequestException('Invalid actor ID');
     }
 
-    // Find session with organization authorization check
-    const session = await this.prisma.userSession.findFirst({
-      where: {
-        id: sessionId,
-        user: {
-          userOrganizations: {
-            some: {
-              organizationId: orgId,
+    return this.prisma.$transaction(async (tx) => {
+      // Find session with organization authorization check
+      const session = await tx.userSession.findFirst({
+        where: {
+          id: sessionId,
+          user: {
+            userOrganizations: {
+              some: {
+                organizationId: orgId,
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!session) {
-      throw new NotFoundException(`User Session with ID ${sessionId} not found`);
-    }
+      if (!session) {
+        throw new NotFoundException(`User Session with ID ${sessionId} not found`);
+      }
 
-    // Update session to revoked
-    await this.prisma.userSession.update({
-      where: { id: sessionId },
-      data: { isRevoked: true },
-    });
+      // Update session to revoked
+      await tx.userSession.update({
+        where: { id: sessionId },
+        data: { isRevoked: true },
+      });
 
-    // Write audit log noting administrative revocation of user credentials family
-    await this.prisma.auditLog.create({
-      data: {
-        organizationId: orgId,
-        userId: actorId,
-        action: 'session.administrative_revocation',
-        resourceName: 'session',
-        resourceId: sessionId,
-        payloadBefore: {
-          sessionId,
-          targetUserId: session.userId,
-          isRevoked: session.isRevoked,
+      // Write audit log noting administrative revocation of user credentials family
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId: actorId,
+          action: 'session.administrative_revocation',
+          resourceName: 'session',
+          resourceId: sessionId,
+          payloadBefore: {
+            sessionId,
+            targetUserId: session.userId,
+            isRevoked: session.isRevoked,
+          },
+          payloadAfter: {
+            sessionId,
+            targetUserId: session.userId,
+            isRevoked: true,
+          },
+          requestId: this.requestContextService.getRequestId(),
         },
-        payloadAfter: {
-          sessionId,
-          targetUserId: session.userId,
-          isRevoked: true,
-        },
-        requestId: this.requestContextService.getRequestId(),
-      },
-    });
+      });
 
-    return { success: true };
+      return { success: true };
+    });
   }
 }
