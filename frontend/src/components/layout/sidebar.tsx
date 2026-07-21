@@ -37,10 +37,14 @@ export function Sidebar() {
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 gap-3 border-b border-border/40 select-none">
         <div 
-          className="h-9 w-9 min-w-[36px] rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-extrabold text-sm tracking-wider shadow shadow-primary/20"
+          className="h-9 w-9 min-w-[36px] flex items-center justify-center select-none pointer-events-none"
           aria-hidden="true"
         >
-          DGO
+          <img 
+            src="/white.png" 
+            alt="DGO Logo" 
+            className="max-h-full max-w-full object-contain" 
+          />
         </div>
         {!isCollapsed && (
           <div className="flex flex-col">
