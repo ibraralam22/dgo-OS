@@ -36,24 +36,23 @@ export function Sidebar() {
     >
       {/* Brand Header */}
       <div className="h-16 flex items-center px-6 gap-3 border-b border-border/40 select-none">
-        <div 
-          className="h-9 w-9 min-w-[36px] flex items-center justify-center select-none pointer-events-none"
-          aria-hidden="true"
-        >
-          <img 
-            src="/white.png" 
-            alt="DGO Logo" 
-            className="max-h-full max-w-full object-contain" 
-          />
-        </div>
-        {!isCollapsed && (
-          <div className="flex flex-col">
-            <span className="text-xs font-bold leading-none uppercase tracking-widest text-foreground">
-              DGO CRM
-            </span>
-            <span className="text-[9px] text-muted-foreground font-medium mt-0.5 tracking-wider">
-              ENTERPRISE PLATFORM
-            </span>
+        {isCollapsed ? (
+          <div 
+            className="h-9 w-9 min-w-[36px] flex items-center justify-center select-none pointer-events-none text-primary font-bold text-sm"
+            aria-hidden="true"
+          >
+            DG
+          </div>
+        ) : (
+          <div 
+            className="h-9 w-24 flex items-center justify-center select-none pointer-events-none"
+            aria-hidden="true"
+          >
+            <img 
+              src="/white.png" 
+              alt="DGO Logo" 
+              className="max-h-full max-w-full object-contain" 
+            />
           </div>
         )}
       </div>
