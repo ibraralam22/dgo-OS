@@ -27,6 +27,7 @@ out/
 *.sw?
 .DS_Store
 Thumbs.db
+.claude/
 
 # Logs and databases
 *.log

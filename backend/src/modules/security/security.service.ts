@@ -1,9 +1,13 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 @Injectable()
 export class SecurityService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly requestContextService: RequestContextService,
+  ) {}
 
   // ─── Chronological Audit Log Queries ────────────────────────────────────────
 
@@ -53,13 +57,12 @@ export class SecurityService {
       ];
     }
 
-    // Execute query
-    const [logs, total] = await Promise.all([
+    const [data, total] = await Promise.all([
       this.prisma.auditLog.findMany({
         where,
-        orderBy: { createdAt: 'desc' },
         skip,
         take: limit,
+        orderBy: { createdAt: 'desc' },
         include: {
           user: {
             select: {
@@ -75,18 +78,17 @@ export class SecurityService {
     ]);
 
     return {
-      logs,
-      total,
-      page,
-      limit,
-      totalPages: Math.ceil(total / limit),
+      data,
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
-  // ─── Active User Sessions Management ────────────────────────────────────────
-
   async getSessions(orgId: string) {
-    // Validate organization ID
     if (!orgId || typeof orgId !== 'string') {
       throw new BadRequestException('Invalid organization ID');
     }
@@ -127,51 +129,54 @@ export class SecurityService {
       throw new BadRequestException('Invalid actor ID');
     }
 
-    // Find session with organization authorization check
-    const session = await this.prisma.userSession.findFirst({
-      where: {
-        id: sessionId,
-        user: {
-          userOrganizations: {
-            some: {
-              organizationId: orgId,
+    return this.prisma.$transaction(async (tx) => {
+      // Find session with organization authorization check
+      const session = await tx.userSession.findFirst({
+        where: {
+          id: sessionId,
+          user: {
+            userOrganizations: {
+              some: {
+                organizationId: orgId,
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    if (!session) {
-      throw new NotFoundException(`User Session with ID ${sessionId} not found`);
-    }
+      if (!session) {
+        throw new NotFoundException(`User Session with ID ${sessionId} not found`);
+      }
 
-    // Update session to revoked
-    await this.prisma.userSession.update({
-      where: { id: sessionId },
-      data: { isRevoked: true },
-    });
+      // Update session to revoked
+      await tx.userSession.update({
+        where: { id: sessionId },
+        data: { isRevoked: true },
+      });
 
-    // Write audit log noting administrative revocation of user credentials family
-    await this.prisma.auditLog.create({
-      data: {
-        organizationId: orgId,
-        userId: actorId,
-        action: 'session.administrative_revocation',
-        resourceName: 'session',
-        resourceId: sessionId,
-        payloadBefore: {
-          sessionId,
-          targetUserId: session.userId,
-          isRevoked: session.isRevoked,
+      // Write audit log noting administrative revocation of user credentials family
+      await tx.auditLog.create({
+        data: {
+          organizationId: orgId,
+          userId: actorId,
+          action: 'session.administrative_revocation',
+          resourceName: 'session',
+          resourceId: sessionId,
+          payloadBefore: {
+            sessionId,
+            targetUserId: session.userId,
+            isRevoked: session.isRevoked,
+          },
+          payloadAfter: {
+            sessionId,
+            targetUserId: session.userId,
+            isRevoked: true,
+          },
+          requestId: this.requestContextService.getRequestId(),
         },
-        payloadAfter: {
-          sessionId,
-          targetUserId: session.userId,
-          isRevoked: true,
-        },
-      },
-    });
+      });
 
-    return { success: true };
+      return { success: true };
+    });
   }
 }

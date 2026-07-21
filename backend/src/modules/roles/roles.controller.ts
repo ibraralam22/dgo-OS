@@ -24,7 +24,7 @@ import { PermissionsGuard } from '../../common/guards/permissions.guard';
 import { RequirePermissions } from '../../common/decorators/permissions.decorator';
 import { ActiveUser } from '../../common/decorators/user.decorator';
 import type { ActiveUserData } from '../../common/decorators/user.decorator';
-import { RolesService } from './roles.service';
+import { RolesService, RoleListItem } from './roles.service';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 
@@ -39,7 +39,7 @@ export class RolesController {
   @RequirePermissions('iam:read')
   @ApiOperation({ summary: 'List all roles visible to the active organization' })
   @ApiResponse({ status: 200, description: 'Role list returned successfully' })
-  async listRoles(@ActiveUser() activeUser: ActiveUserData) {
+  async listRoles(@ActiveUser() activeUser: ActiveUserData): Promise<{ success: boolean; data: RoleListItem[] }> {
     const data = await this.rolesService.listRoles(activeUser.organizationId!);
     return { success: true, data };
   }

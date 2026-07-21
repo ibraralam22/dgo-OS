@@ -11,6 +11,7 @@ import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { RegisterSuperAdminDto } from './dto/register-superadmin.dto';
 import { RequestContextService } from '../../common/context/request-context.service';
+import { CacheService } from '../../shared/cache/cache.service';
 
 export interface AuthSessionResponse {
   accessToken: string;
@@ -37,6 +38,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly requestContextService: RequestContextService,
+    private readonly cacheService: CacheService,
   ) {}
 
   /**
@@ -77,6 +79,69 @@ export class AuthService {
   }
 
   /**
+   * Get user's role and permissions for an organization with caching
+   */
+  async getUserRoleAndPermissions(userId: string, organizationId: string) {
+    // Try to get from cache first
+    const cacheKey = `user-role-perms:${userId}:${organizationId}`;
+    const cached = await this.cacheService.get<{
+      roleName: string;
+      permissions: string[];
+    }>(cacheKey);
+
+    if (cached) {
+      return cached;
+    }
+
+    // If not in cache, fetch from database
+    const userOrg = await this.prisma.userOrganization.findFirst({
+      where: {
+        userId,
+        organizationId,
+        deletedAt: null,
+      },
+      include: {
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!userOrg) {
+      throw new UnauthorizedException(
+        'Account is not associated with the specified organization',
+      );
+    }
+
+    const roleName = userOrg.role.name;
+    const permissions = userOrg.role.rolePermissions.map(
+      (rp: any) => rp.permission.code,
+    );
+
+    const result = {
+      roleName,
+      permissions,
+    };
+
+    // Cache for 1 hour (can be adjusted based on requirements)
+    await this.cacheService.set(cacheKey, result, 3600);
+
+    return result;
+  }
+
+  /**
+   * Invalidate user role and permissions cache
+   */
+  async invalidateUserRoleCache(userId: string, organizationId: string) {
+    const cacheKey = `user-role-perms:${userId}:${organizationId}`;
+    await this.cacheService.del(cacheKey);
+  }
+
+  /**
    * Initiates session login and creates a new authenticated session
    */
   async login(
@@ -101,17 +166,11 @@ export class AuthService {
   ): Promise<AuthSessionResponse> {
     const db = tx || this.prisma;
 
+    // Get user's organizations (without role/permissions to reduce data transfer)
     const userOrgs = await db.userOrganization.findMany({
       where: { userId, deletedAt: null },
       include: {
         organization: true,
-        role: {
-          include: {
-            rolePermissions: {
-              include: { permission: true },
-            },
-          },
-        },
       },
     });
 
@@ -122,16 +181,17 @@ export class AuthService {
     }
 
     // Support tenant switching: find the requested organization if user belongs to it, otherwise default to first
-    let activeOrgMapping = userOrgs.find(
-      (uo: any) => uo.organizationId === requestedOrgId,
+    let activeOrg = userOrgs.find(
+      (uo: { organizationId: string }) => uo.organizationId === requestedOrgId,
     );
-    if (!activeOrgMapping) {
-      activeOrgMapping = userOrgs[0];
+    if (!activeOrg) {
+      activeOrg = userOrgs[0];
     }
 
-    const roleName = activeOrgMapping.role.name;
-    const permissions = activeOrgMapping.role.rolePermissions.map(
-      (rp: any) => rp.permission.code,
+    // Get role and permissions for the active organization (with caching)
+    const { roleName, permissions } = await this.getUserRoleAndPermissions(
+      userId,
+      activeOrg.organizationId,
     );
 
     const userRecord = await db.user.findUnique({
@@ -148,7 +208,7 @@ export class AuthService {
         email: userRecord.email,
         role: roleName,
         permissions,
-        orgId: activeOrgMapping.organizationId,
+        orgId: activeOrg.organizationId,
       },
       { expiresIn: '15m' },
     );
@@ -170,11 +230,13 @@ export class AuthService {
     });
 
     // Populate user profile info package
-    const organizations = userOrgs.map((uo: any) => ({
-      id: uo.organization.id,
-      name: uo.organization.name,
-      subdomain: uo.organization.subdomain,
-    }));
+    const organizations = userOrgs.map(
+      (uo: { organization: { id: string; name: string; subdomain: string } }) => ({
+        id: uo.organization.id,
+        name: uo.organization.name,
+        subdomain: uo.organization.subdomain,
+      }),
+    );
 
     return {
       accessToken,

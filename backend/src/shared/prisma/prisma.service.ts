@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy, NotFoundException } from '@nestjs/common';
 import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
-import { Pool } from 'pg';
+import { Pool, PoolConfig } from 'pg';
 import { ConfigService } from '@nestjs/config';
 import { RequestContextService } from '../../common/context/request-context.service';
 
@@ -32,7 +32,25 @@ export class PrismaService
       throw new Error('DATABASE_URL environment variable is missing');
     }
 
-    const pool = new Pool({ connectionString: dbUrl });
+    const poolConfig: PoolConfig = { connectionString: dbUrl };
+
+    // Configure pool size from environment variables with sensible defaults
+    const max = configService.get<number>('PG_POOL_MAX');
+    if (max !== undefined && !isNaN(max)) {
+      poolConfig.max = max;
+    }
+
+    const min = configService.get<number>('PG_POOL_MIN');
+    if (min !== undefined && !isNaN(min)) {
+      poolConfig.min = min;
+    }
+
+    const idleTimeoutMillis = configService.get<number>('PG_IDLE_TIMEOUT');
+    if (idleTimeoutMillis !== undefined && !isNaN(idleTimeoutMillis)) {
+      poolConfig.idleTimeoutMillis = idleTimeoutMillis;
+    }
+
+    const pool = new Pool(poolConfig);
     const adapter = new PrismaPg(pool);
 
     super({

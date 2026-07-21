@@ -10,6 +10,10 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { UpdateUserRoleDto } from './dto/update-user-role.dto';
 import * as bcrypt from 'bcrypt';
+import { AuditLogAction } from '../../shared/constants/audit-log.actions';
+import { AuditLogService } from '../../shared/audit/audit-log.service';
+import { CacheService } from '../../shared/cache/cache.service';
+import { RequestContextService } from '../../common/context/request-context.service';
 
 export interface UserListItem {
   id: string;
@@ -39,7 +43,12 @@ export interface PaginatedUsers {
 
 @Injectable()
 export class UsersService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly cacheService: CacheService,
+    private readonly auditLogService: AuditLogService,
+    private readonly requestContextService: RequestContextService,
+  ) {}
 
   /**
    * List all users belonging to an organization with pagination and filtering.
@@ -52,6 +61,15 @@ export class UsersService {
     status?: string,
     roleName?: string,
   ): Promise<PaginatedUsers> {
+    // Create a cache key based on the query parameters
+    const cacheKey = `user-list:${organizationId}:page-${page}:limit-${limit}:search-${search || 'null'}:status-${status || 'null'}:role-${roleName || 'null'}`;
+
+    // Try to get from cache first
+    const cached = await this.cacheService.get<PaginatedUsers>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const skip = (page - 1) * limit;
 
     // Build the full nested where using Prisma types
@@ -122,7 +140,7 @@ export class UsersService {
       },
     }));
 
-    return {
+    const result = {
       data,
       meta: {
         total,
@@ -131,6 +149,11 @@ export class UsersService {
         totalPages: Math.ceil(total / limit),
       },
     };
+
+    // Cache for 5 minutes (adjust as needed)
+    await this.cacheService.set(cacheKey, result, 300);
+
+    return result;
   }
 
   /**
@@ -144,7 +167,9 @@ export class UsersService {
   ): Promise<UserListItem> {
     // Users can view their own profile; others need iam:read
     if (userId !== requesterId && !requesterHasIamRead) {
-      throw new ForbiddenException('Insufficient permissions to view this user profile');
+      throw new ForbiddenException(
+        'Insufficient permissions to view this user profile',
+      );
     }
 
     const userOrg = await this.prisma.userOrganization.findFirst({
@@ -203,7 +228,10 @@ export class UsersService {
 
     // Check if user already exists globally
     let user = await this.prisma.user.findFirst({
-      where: { email: dto.email, deletedAt: null },
+      where: {
+        email: dto.email,
+        deletedAt: null,
+      },
     });
 
     if (user) {
@@ -222,7 +250,15 @@ export class UsersService {
         data: { userId: user.id, organizationId, roleId: role.id },
       });
 
-      await this.writeAuditLog(actorId, organizationId, 'user.assign', 'user', user.id, actorIp, null, { roleName: dto.roleName });
+      await this.auditLogService.createWithContext(
+        organizationId,
+        actorId,
+        AuditLogAction.USER_ASSIGN,
+        'user',
+        user.id,
+        null,
+        { roleName: dto.roleName },
+      );
     } else {
       // Create new user
       const passwordHash = await bcrypt.hash(dto.password, 12);
@@ -241,8 +277,27 @@ export class UsersService {
         data: { userId: user.id, organizationId, roleId: role.id },
       });
 
-      await this.writeAuditLog(actorId, organizationId, 'user.create', 'user', user.id, actorIp, null, { email: dto.email, roleName: dto.roleName });
+      await this.auditLogService.createWithContext(
+        organizationId,
+        actorId,
+        AuditLogAction.USER_CREATE,
+        'user',
+        user.id,
+        null,
+        { email: dto.email, roleName: dto.roleName },
+      );
     }
+
+    // Invalidate user list caches for this organization since a user was added
+    await this.cacheService.del(
+        `user-list:${organizationId}:page-1:limit-10:search-null:status-null:role-null`,
+    );
+    await this.cacheService.del(
+        `user-list:${organizationId}:page-1:limit-50:search-null:status-null:role-null`,
+    );
+    await this.cacheService.del(
+        `user-list:${organizationId}:page-1:limit-100:search-null:status-null:role-null`,
+    );
 
     return {
       id: user.id,
@@ -272,12 +327,18 @@ export class UsersService {
 
     // Non-admin users cannot change status
     if (dto.status && userId === requesterId && !requesterHasIamWrite) {
-      throw new ForbiddenException('You cannot change your own account status');
+      throw new ForbiddenException(
+        'You cannot change your own account status',
+      );
     }
 
     // Verify the user exists in the organization
     const userOrg = await this.prisma.userOrganization.findFirst({
-      where: { userId, organizationId, deletedAt: null },
+      where: {
+        userId,
+        organizationId,
+        deletedAt: null,
+      },
       include: { user: true },
     });
     if (!userOrg) {
@@ -309,7 +370,20 @@ export class UsersService {
       });
     }
 
-    await this.writeAuditLog(requesterId, organizationId, 'user.update', 'user', userId, actorIp, before, dto);
+    await this.auditLogService.createWithContext(
+      organizationId,
+      requesterId,
+      AuditLogAction.USER_UPDATE,
+      'user',
+      userId,
+      before,
+      dto,
+    );
+
+    // Invalidate user list caches for this organization since user details changed
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-10:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-50:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-100:search-null:status-null:role-null`);
 
     return updatedUser;
   }
@@ -353,7 +427,21 @@ export class UsersService {
       data: { roleId: role.id },
     });
 
-    await this.writeAuditLog(actorId, organizationId, 'user.role_change', 'user', userId, actorIp, { role: beforeRole }, { role: dto.roleName });
+    await this.auditLogService.createWithContext(
+      organizationId,
+      actorId,
+      AuditLogAction.USER_ROLE_CHANGE,
+      'user',
+      userId,
+      { role: beforeRole },
+      { role: dto.roleName },
+    );
+
+    // Invalidate user list caches for this organization since user roles changed
+    // Clear common pagination combinations - in production, consider using cache tagging
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-10:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-50:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-100:search-null:status-null:role-null`);
 
     return { success: true, message: 'User role updated successfully' };
   }
@@ -390,35 +478,21 @@ export class UsersService {
       data: { isRevoked: true },
     });
 
-    await this.writeAuditLog(actorId, organizationId, 'user.remove', 'user', userId, actorIp, null, null);
+    await this.auditLogService.createWithContext(
+      organizationId,
+      actorId,
+      AuditLogAction.USER_REMOVE,
+      'user',
+      userId,
+      null,
+      null,
+    );
+
+    // Invalidate user list caches for this organization since user membership changed
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-10:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-50:search-null:status-null:role-null`);
+    await this.cacheService.del(`user-list:${organizationId}:page-1:limit-100:search-null:status-null:role-null`);
 
     return { success: true, message: 'User membership removed from organization' };
-  }
-
-  /**
-   * Helper to write audit log entries
-   */
-  private async writeAuditLog(
-    actorId: string,
-    organizationId: string,
-    action: string,
-    resourceName: string,
-    resourceId: string,
-    ipAddress?: string,
-    before?: unknown,
-    after?: unknown,
-  ) {
-    await this.prisma.auditLog.create({
-      data: {
-        userId: actorId,
-        organizationId,
-        action,
-        resourceName,
-        resourceId,
-        ipAddress,
-        payloadBefore: before ? (before as object) : undefined,
-        payloadAfter: after ? (after as object) : undefined,
-      },
-    });
   }
 }

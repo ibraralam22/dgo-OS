@@ -28,45 +28,7 @@ import {
 import { Button } from '@components/ui/button';
 import ClientModal from '@components/clients/client-modal';
 import ContactModal from '@components/clients/contact-modal';
-
-// Recursive Hierarchy Tree Node Component
-function HierarchyTreeNodeComponent({ node, activeId }: { node: HierarchyNode; activeId: string }) {
-  const isActive = node.id === activeId;
-  const hasChildren = node.subsidiaries && node.subsidiaries.length > 0;
-  return (
-    <li
-      role="treeitem"
-      aria-selected={isActive}
-      aria-expanded={hasChildren ? true : undefined}
-      className="flex flex-col gap-2 pl-4 border-l border-border/20 mt-2 list-none"
-    >
-      <div
-        tabIndex={0}
-        className={`flex items-center gap-2 p-2 rounded-lg text-xs font-semibold w-fit border ${
-          isActive
-            ? 'bg-primary/10 border-primary/30 text-primary'
-            : 'bg-card/45 border-border/10 text-foreground/80 hover:bg-accent/10 transition-colors'
-        }`}
-      >
-        <Building2 className="h-3.5 w-3.5" />
-        {isActive ? (
-          <span>{node.name} (Active Profile)</span>
-        ) : (
-          <a href={`/dashboard/clients/${node.id}`} className="hover:underline focus:outline-none">
-            {node.name} ({node.domain})
-          </a>
-        )}
-      </div>
-      {hasChildren && (
-        <ul role="group" className="flex flex-col gap-1 list-none p-0 m-0">
-          {node.subsidiaries.map((child) => (
-            <HierarchyTreeNodeComponent key={child.id} node={child} activeId={activeId} />
-          ))}
-        </ul>
-      )}
-    </li>
-  );
-}
+import { HierarchyTreeNode } from '@components/clients/hierarchy-tree-node';
 
 export default function ClientDetailPage() {
   const params = useParams();
@@ -362,7 +324,7 @@ export default function ClientDetailPage() {
             ) : hierarchyResponse?.hierarchy ? (
               <div className="pr-2 py-2 max-h-[300px] overflow-y-auto">
                 <ul role="tree" aria-label="Organizational Hierarchy Tree" className="p-0 m-0 list-none">
-                  <HierarchyTreeNodeComponent node={hierarchyResponse.hierarchy} activeId={id} />
+                  <HierarchyTreeNode node={hierarchyResponse.hierarchy} activeId={id} />
                 </ul>
               </div>
             ) : (

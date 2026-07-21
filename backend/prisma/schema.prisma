@@ -175,6 +175,7 @@ model AuditLog {
   payloadBefore  Json?
   payloadAfter   Json?
   ipAddress      String?       @db.VarChar(45)
+  requestId      String?       @db.VarChar(100) // Unique request ID for tracing
   createdAt      DateTime      @default(now()) @db.Timestamptz(6)
 
   organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
@@ -183,6 +184,7 @@ model AuditLog {
   @@index([organizationId])
   @@index([userId])
   @@index([createdAt(sort: Desc)])
+  @@index([requestId])
   @@map("audit_logs")
 }
 

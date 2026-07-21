@@ -45,6 +45,18 @@ class EnvironmentVariables {
   @IsString()
   @IsOptional()
   ALLOWED_ORIGINS?: string;
+
+  @IsNumber()
+  @IsOptional()
+  PG_POOL_MAX?: number;
+
+  @IsNumber()
+  @IsOptional()
+  PG_POOL_MIN?: number;
+
+  @IsNumber()
+  @IsOptional()
+  PG_IDLE_TIMEOUT?: number;
 }
 
 export function validateConfig(config: Record<string, any>) {

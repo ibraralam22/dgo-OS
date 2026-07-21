@@ -12,165 +12,17 @@ import {
   Search,
   ChevronLeft,
   ChevronRight,
-  MoreHorizontal,
-  ShieldCheck,
   Loader2,
   UserX,
-  RefreshCw,
-  Edit,
-  Trash2,
 } from 'lucide-react';
 import { Button } from '@components/ui/button';
 import { Input } from '@components/ui/input';
 import { cn } from '@utils/cn';
 import UserModal from '@components/users/user-modal';
+import { StatusBadge, RoleBadge, Avatar } from '@components/users/user-badges';
+import { ActionMenu } from '@components/users/action-menu';
+import { ConfirmDialog } from '@components/users/confirm-dialog';
 
-// ─── Status badge component ───────────────────────────────────────────────────
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, string> = {
-    active: 'bg-emerald-500/15 text-emerald-400 border border-emerald-500/25',
-    pending: 'bg-amber-500/15 text-amber-400 border border-amber-500/25',
-    suspended: 'bg-red-500/15 text-red-400 border border-red-500/25',
-  };
-  return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider', map[status] ?? 'bg-muted text-muted-foreground')}>
-      {status}
-    </span>
-  );
-}
-
-// ─── Role badge component ─────────────────────────────────────────────────────
-function RoleBadge({ role }: { role: string }) {
-  const map: Record<string, string> = {
-    SuperAdmin: 'bg-violet-500/15 text-violet-400 border border-violet-500/25',
-    TenantAdmin: 'bg-blue-500/15 text-blue-400 border border-blue-500/25',
-    SalesRepresentative: 'bg-cyan-500/15 text-cyan-400 border border-cyan-500/25',
-    ClientContact: 'bg-slate-500/15 text-slate-400 border border-slate-500/25',
-  };
-  return (
-    <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wide', map[role] ?? 'bg-muted text-muted-foreground')}>
-      {role}
-    </span>
-  );
-}
-
-// ─── Avatar initials component ────────────────────────────────────────────────
-function Avatar({ firstName, lastName }: { firstName: string; lastName: string }) {
-  return (
-    <div className="h-8 w-8 rounded-full bg-primary/15 border border-primary/25 flex items-center justify-center text-primary text-xs font-bold select-none">
-      {firstName[0]}{lastName[0]}
-    </div>
-  );
-}
-
-// ─── Action dropdown ──────────────────────────────────────────────────────────
-function ActionMenu({
-  user,
-  canWrite,
-  onEdit,
-  onChangeRole,
-  onToggleStatus,
-  onRemove,
-}: {
-  user: UserListItem;
-  canWrite: boolean;
-  onEdit: (u: UserListItem) => void;
-  onChangeRole: (u: UserListItem) => void;
-  onToggleStatus: (u: UserListItem) => void;
-  onRemove: (u: UserListItem) => void;
-}) {
-  const [open, setOpen] = useState(false);
-
-  if (!canWrite) return null;
-
-  return (
-    <div className="relative">
-      <button
-        id={`user-action-${user.id}`}
-        onClick={() => setOpen((v) => !v)}
-        onBlur={() => setTimeout(() => setOpen(false), 150)}
-        className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        aria-label="User actions"
-        aria-haspopup="true"
-        aria-expanded={open}
-      >
-        <MoreHorizontal className="h-4 w-4" />
-      </button>
-
-      {open && (
-        <div className="absolute right-0 z-50 mt-1 w-44 glass-card rounded-xl border border-border/60 shadow-xl overflow-hidden">
-          <button
-            onClick={() => { setOpen(false); onEdit(user); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground hover:bg-accent/50 transition-colors"
-          >
-            <Edit className="h-3.5 w-3.5 text-muted-foreground" /> Edit Profile
-          </button>
-          <button
-            onClick={() => { setOpen(false); onChangeRole(user); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground hover:bg-accent/50 transition-colors"
-          >
-            <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground" /> Change Role
-          </button>
-          <button
-            onClick={() => { setOpen(false); onToggleStatus(user); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-foreground hover:bg-accent/50 transition-colors"
-          >
-            <RefreshCw className="h-3.5 w-3.5 text-muted-foreground" />
-            {user.status === 'suspended' ? 'Activate User' : 'Suspend User'}
-          </button>
-          <div className="border-t border-border/30 mx-3" />
-          <button
-            onClick={() => { setOpen(false); onRemove(user); }}
-            className="flex w-full items-center gap-2.5 px-3 py-2 text-xs text-red-400 hover:bg-red-500/10 transition-colors"
-          >
-            <Trash2 className="h-3.5 w-3.5" /> Remove from Org
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── Confirm dialog ───────────────────────────────────────────────────────────
-function ConfirmDialog({
-  title,
-  message,
-  confirmLabel,
-  destructive,
-  loading,
-  onConfirm,
-  onCancel,
-}: {
-  title: string;
-  message: string;
-  confirmLabel: string;
-  destructive?: boolean;
-  loading?: boolean;
-  onConfirm: () => void;
-  onCancel: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-      <div className="glass-card rounded-2xl border border-border/60 shadow-2xl w-full max-w-sm p-6 flex flex-col gap-4">
-        <h3 className="text-base font-bold text-foreground">{title}</h3>
-        <p className="text-sm text-muted-foreground leading-relaxed">{message}</p>
-        <div className="flex justify-end gap-2 mt-2">
-          <Button variant="outline" size="sm" onClick={onCancel} disabled={loading}>Cancel</Button>
-          <Button
-            variant={destructive ? 'destructive' : 'primary'}
-            size="sm"
-            onClick={onConfirm}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : confirmLabel}
-          </Button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function UsersPage() {
   const { user: me } = useAuthStore();
   const queryClient = useQueryClient();
@@ -220,7 +72,6 @@ export default function UsersPage() {
     },
   });
 
-
   const removeMutation = useMutation({
     mutationFn: (id: string) => usersApi.remove(id),
     onSuccess: () => {
@@ -236,7 +87,7 @@ export default function UsersPage() {
   const roles = useMemo(() => ['TenantAdmin', 'SalesRepresentative', 'ClientContact'], []);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex flex-col gap-1">
@@ -307,7 +158,7 @@ export default function UsersPage() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-border/40">
+              <tr className="border-b border-border/40 select-none bg-muted/20">
                 <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">User</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Role</th>
                 <th className="px-4 py-3 text-left text-[10px] font-bold uppercase tracking-widest text-muted-foreground">Status</th>
@@ -401,7 +252,7 @@ export default function UsersPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={meta.page <= 1}
-                className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 aria-label="Previous page"
               >
                 <ChevronLeft className="h-4 w-4" />
@@ -412,7 +263,7 @@ export default function UsersPage() {
               <button
                 onClick={() => setPage((p) => Math.min(meta.totalPages, p + 1))}
                 disabled={meta.page >= meta.totalPages}
-                className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-accent/50 disabled:opacity-30 disabled:cursor-not-allowed transition-colors cursor-pointer"
                 aria-label="Next page"
               >
                 <ChevronRight className="h-4 w-4" />

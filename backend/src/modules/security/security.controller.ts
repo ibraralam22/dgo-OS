@@ -4,6 +4,7 @@ import {
   Post,
   Param,
   Query,
+  Body,
   UseGuards,
   ForbiddenException,
   HttpCode,
@@ -12,6 +13,8 @@ import {
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+import { Logger } from '@nestjs/common';
+import { Public } from '../../common/decorators/public.decorator';
 import { SecurityService } from './security.service';
 import { JwtAuthGuard } from '../../common/guards/jwt-auth.guard';
 import { ActiveUser } from '../../common/decorators/user.decorator';
@@ -24,6 +27,8 @@ import { GetAuditLogsDto } from './dto/get-audit-logs.dto';
 @UseGuards(JwtAuthGuard)
 @Controller('security')
 export class SecurityController {
+  private readonly logger = new Logger(SecurityController.name);
+
   constructor(private readonly securityService: SecurityService) {}
 
   private checkAdmin(user: ActiveUserData) {
@@ -80,4 +85,9 @@ export class SecurityController {
       user.id,
     );
   }
+   @Public()
+   @Post('csp-report')
+   async handleCspReport(@Body() report: any) {
+     this.logger.log(`CSP Violation Report: ${JSON.stringify(report)}`);
+   }
 }

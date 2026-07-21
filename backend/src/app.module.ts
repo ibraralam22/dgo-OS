@@ -1,11 +1,13 @@
 import { Module, NestModule, MiddlewareConsumer } from '@nestjs/common';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { LoggingInterceptor } from './common/interceptors/logger.interceptor';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { SharedModule } from './shared/shared.module';
 import { RequestContextModule } from './common/context/request-context.module';
 import { TenantMiddleware } from './common/context/tenant.middleware';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { RolesModule } from './modules/roles/roles.module';
@@ -21,10 +23,11 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { TicketsModule } from './modules/tickets/tickets.module';
 import { ReportsModule } from './modules/reports/reports.module';
-import { SettingsModule } from './modules/settings/settings.module';
 import { SecurityModule } from './modules/security/security.module';
+import { SettingsModule } from './modules/settings/settings.module';
+import { ConfigModule } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 
-import { ConfigModule, ConfigService } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -44,7 +47,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
     UsersModule,
     RolesModule,
     DashboardModule,
-    LeadsModule,
     ClientsModule,
     OpportunitiesModule,
     QuotationsModule,
@@ -65,10 +67,16 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
   ],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer) {
-    consumer.apply(TenantMiddleware).forRoutes('*'); // Apply tenant-scoping middleware globally to all endpoints
+    consumer
+      .apply(TenantMiddleware, RequestIdMiddleware)
+      .forRoutes('*'); // Apply tenant-scoping and request ID middleware globally to all endpoints
   }
 }
