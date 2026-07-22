@@ -9,58 +9,84 @@ import Redis from 'ioredis';
 
 @Injectable()
 export class RedisService implements OnModuleInit, OnModuleDestroy {
-  private redisClient: Redis;
+  private redisClient?: Redis;
   private readonly logger = new Logger(RedisService.name);
 
   constructor(private readonly configService: ConfigService) {}
 
   onModuleInit() {
+    this.initializeClient();
+  }
+
+  private initializeClient(): void {
+    if (this.redisClient) {
+      return;
+    }
+
     const redisUrl = this.configService.get<string>('REDIS_URL');
     if (!redisUrl) {
       throw new Error('REDIS_URL configuration is missing!');
     }
+
     this.logger.log(`Connecting to Redis instance at: ${redisUrl}`);
 
-    this.redisClient = new Redis(redisUrl, {
+    const client = new Redis(redisUrl, {
       maxRetriesPerRequest: 3,
     });
 
-    this.redisClient.on('connect', () => {
+    client.on('connect', () => {
       this.logger.log('Successfully connected to Redis database.');
     });
 
-    this.redisClient.on('error', (err) => {
+    client.on('error', (err) => {
       this.logger.error('Redis database connection error:', err);
     });
+
+    this.redisClient = client;
   }
 
   onModuleDestroy() {
-    this.redisClient.disconnect();
+    if (this.redisClient) {
+      this.redisClient.disconnect();
+    }
     this.logger.log('Disconnected from Redis database.');
   }
 
   get client(): Redis {
+    return this.getClient();
+  }
+
+  private getClient(): Redis {
+    if (!this.redisClient) {
+      this.initializeClient();
+    }
+
+    if (!this.redisClient) {
+      throw new Error('Redis client is not initialized');
+    }
+
     return this.redisClient;
   }
 
   // Common Key-Value Helpers
   async get(key: string): Promise<string | null> {
-    return this.redisClient.get(key);
+    return this.getClient().get(key);
   }
 
   async set(key: string, value: string, ttlSeconds?: number): Promise<string> {
+    const client = this.getClient();
     if (ttlSeconds) {
-      return this.redisClient.set(key, value, 'EX', ttlSeconds);
+      return client.set(key, value, 'EX', ttlSeconds);
     }
-    return this.redisClient.set(key, value);
+    return client.set(key, value);
   }
 
   async del(key: string): Promise<number> {
-    return this.redisClient.del(key);
+    return this.getClient().del(key);
   }
 
   async exists(key: string): Promise<number> {
-    return this.redisClient.exists(key);
+    return this.getClient().exists(key);
   }
 
   /**
@@ -75,7 +101,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   ): Promise<string | null> {
     const uniqueToken =
       Math.random().toString(36).substring(2) + Date.now().toString(36);
-    const result = await this.redisClient.set(
+    const result = await this.getClient().set(
       lockKey,
       uniqueToken,
       'EX',
@@ -100,7 +126,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
         return 0
       end
     `;
-    const result = await this.redisClient.eval(
+    const result = await this.getClient().eval(
       releaseScript,
       1,
       lockKey,

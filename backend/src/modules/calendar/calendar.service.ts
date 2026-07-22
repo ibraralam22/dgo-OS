@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
+  ForbiddenException, Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateEventDto } from './dto/create-event.dto';
 import { UpdateEventDto } from './dto/update-event.dto';
 import { RsvpDto } from './dto/rsvp.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Shared include block for event queries */
 const EVENT_INCLUDE = {
@@ -21,7 +22,7 @@ const EVENT_INCLUDE = {
 
 @Injectable()
 export class CalendarService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly notifications?: NotificationsService) {}
 
   // ─── List Events (date-range window) ──────────────────────────────────────────
 
@@ -131,6 +132,7 @@ export class CalendarService {
     });
 
     await this.writeAudit(orgId, actorId, 'calendar_event.create', event.id, null, event);
+    await this.notify(event, orgId, actorId, 'invited you to an event');
     return event;
   }
 
@@ -162,6 +164,7 @@ export class CalendarService {
     });
 
     await this.writeAudit(orgId, actorId, 'calendar_event.update', id, existing, updated);
+    await this.notify(updated, orgId, actorId, 'updated an event');
     return updated;
   }
 
@@ -177,6 +180,7 @@ export class CalendarService {
     });
 
     await this.writeAudit(orgId, actorId, 'calendar_event.delete', id, existing, null);
+    await this.notify(existing, orgId, actorId, 'cancelled an event');
     return { success: true };
   }
 
@@ -191,6 +195,8 @@ export class CalendarService {
       data: userIds.map((userId) => ({ eventId, userId, status: 'INVITED' })),
       skipDuplicates: true,
     });
+
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: userIds, resourceType: 'calendar', resourceId: eventId, title: 'Calendar invitation', body: existing.title, dedupeKey: `calendar:${eventId}:attendees:${Date.now()}` });
 
     return this.getEventById(eventId, orgId);
   }
@@ -221,13 +227,20 @@ export class CalendarService {
       throw new ForbiddenException('You are not an attendee of this event');
     }
 
-    return this.prisma.eventAttendee.update({
+    const updated = await this.prisma.eventAttendee.update({
       where: { eventId_userId: { eventId, userId: actorId } },
       data: { status: dto.status },
     });
+    const event = await this.getEventById(eventId, orgId);
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: [event.createdById], resourceType: 'calendar', resourceId: eventId, title: 'Calendar RSVP updated', body: `${event.title}: ${dto.status}`, dedupeKey: `calendar:${eventId}:rsvp:${actorId}:${Date.now()}` });
+    return updated;
   }
 
   // ─── Private Helpers ──────────────────────────────────────────────────────────
+
+  private async notify(event: { id: string; title: string; createdById: string; attendees?: Array<{ userId: string }> }, orgId: string, actorId: string, action: string): Promise<void> {
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: [event.createdById, ...(event.attendees || []).map((attendee) => attendee.userId)], resourceType: 'calendar', resourceId: event.id, title: 'Calendar event updated', body: `${action}: ${event.title}`, dedupeKey: `calendar:${event.id}:${action}:${Date.now()}` });
+  }
 
   private assertDateOrder(startAt: string, endAt: string) {
     if (new Date(endAt) <= new Date(startAt)) {

@@ -2,7 +2,8 @@
 
 import React, { useState } from 'react';
 import { useAuthStore } from '../../store/auth-store';
-import { Bell, LogOut, ChevronDown, Building, User } from 'lucide-react';
+import { LogOut, ChevronDown, Building, User } from 'lucide-react';
+import { NotificationBell } from '@components/notifications/notification-bell';
 import { useRouter } from 'next/navigation';
 
 export function Navbar() {
@@ -79,14 +80,7 @@ export function Navbar() {
           </div>
         )}
 
-        {/* Alerts Center */}
-        <button 
-          aria-label="View notifications"
-          className="relative h-9 w-9 flex items-center justify-center rounded-lg hover:bg-accent transition-colors border border-border/30 cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
-        >
-          <Bell className="h-4.5 w-4.5 text-muted-foreground hover:text-foreground" aria-hidden="true" />
-          <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-primary" />
-        </button>
+        <NotificationBell />
 
         {/* Separator */}
         <div className="h-6 w-[1px] bg-border/55" aria-hidden="true" />

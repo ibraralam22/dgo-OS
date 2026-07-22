@@ -1,11 +1,12 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, Optional } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateLeadDto } from './dto/create-lead.dto';
 import { UpdateLeadDto } from './dto/update-lead.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class LeadsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly notifications?: NotificationsService) {}
 
   async createLead(dto: CreateLeadDto, orgId: string, actorUserId: string) {
     const lead = await this.prisma.lead.create({
@@ -35,6 +36,8 @@ export class LeadsService {
         payloadAfter: lead as any,
       },
     });
+
+    await this.notify(lead, orgId, actorUserId, 'created');
 
     return lead;
   }
@@ -146,6 +149,8 @@ export class LeadsService {
       },
     });
 
+    await this.notify(updatedLead, orgId, actorUserId, 'updated');
+
     return updatedLead;
   }
 
@@ -176,6 +181,8 @@ export class LeadsService {
       },
     });
 
+    await this.notify(updatedLead, orgId, actorUserId, 'converted');
+
     return updatedLead;
   }
 
@@ -200,6 +207,12 @@ export class LeadsService {
       },
     });
 
+    await this.notify(deletedLead, orgId, actorUserId, 'deleted');
+
     return deletedLead;
+  }
+
+  private async notify(lead: { id: string; ownerId: string | null; companyName: string }, orgId: string, actorId: string, action: string): Promise<void> {
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: lead.ownerId ? [lead.ownerId] : [], resourceType: 'lead', resourceId: lead.id, title: `Lead ${action}`, body: lead.companyName, dedupeKey: `lead:${lead.id}:${action}:${Date.now()}` });
   }
 }

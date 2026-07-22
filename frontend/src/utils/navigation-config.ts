@@ -12,6 +12,7 @@ import {
   CheckSquare,
   CalendarDays,
   BarChart3,
+  Bell,
 } from 'lucide-react';
 
 export interface NavItem {
@@ -23,6 +24,12 @@ export interface NavItem {
 }
 
 export const navigationItems: NavItem[] = [
+  {
+    label: 'Notifications',
+    path: '/dashboard/notifications',
+    icon: Bell,
+    requiredPermissions: ['notifications:read'],
+  },
   {
     label: 'Dashboard',
     path: '/dashboard',

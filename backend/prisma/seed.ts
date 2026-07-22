@@ -41,6 +41,7 @@ async function main() {
     { code: 'calendar:write', description: 'Create, edit, and delete own calendar events' },
     { code: 'reports:read', description: 'View analytics reports' },
     { code: 'reports:write', description: 'Save custom report layouts' },
+    { code: 'notifications:read', description: 'Read personal in-app notifications' },
   ];
 
   console.log('Locking in permissions...');
@@ -89,6 +90,7 @@ async function main() {
         'calendar:write',
         'reports:read',
         'reports:write',
+        'notifications:read',
       ],
     },
     {
@@ -112,6 +114,7 @@ async function main() {
         'tickets:read',
         'tickets:write',
         'reports:read',
+        'notifications:read',
       ],
     },
     {

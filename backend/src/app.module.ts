@@ -25,6 +25,7 @@ import { TicketsModule } from './modules/tickets/tickets.module';
 import { ReportsModule } from './modules/reports/reports.module';
 import { SecurityModule } from './modules/security/security.module';
 import { SettingsModule } from './modules/settings/settings.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 import { ConfigModule } from '@nestjs/config';
 import { ConfigService } from '@nestjs/config';
 
@@ -58,6 +59,7 @@ import { ConfigService } from '@nestjs/config';
     TicketsModule,
     ReportsModule,
     SettingsModule,
+    NotificationsModule,
     SecurityModule,
   ],
   controllers: [AppController],

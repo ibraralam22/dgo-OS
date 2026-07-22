@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
+  ForbiddenException, Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateTaskDto } from './dto/create-task.dto';
 import { UpdateTaskDto } from './dto/update-task.dto';
 import { PatchStatusDto } from './dto/patch-status.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 /** Status transitions that are always blocked */
 const BLOCKED_TRANSITIONS: Record<string, string[]> = {
@@ -16,7 +17,7 @@ const BLOCKED_TRANSITIONS: Record<string, string[]> = {
 
 @Injectable()
 export class TasksService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly notifications?: NotificationsService) {}
 
   // ─── List ────────────────────────────────────────────────────────────────────
 
@@ -166,6 +167,7 @@ export class TasksService {
     });
 
     await this.writeAudit(orgId, actorId, 'task.create', task.id, null, task);
+    await this.notify(task, orgId, actorId, 'assigned');
     return task;
   }
 
@@ -198,6 +200,7 @@ export class TasksService {
     });
 
     await this.writeAudit(orgId, actorId, 'task.update', id, existing, updated);
+    await this.notify(updated, orgId, actorId, 'updated');
     return updated;
   }
 
@@ -233,6 +236,7 @@ export class TasksService {
     });
 
     await this.writeAudit(orgId, actorId, 'task.status_changed', id, existing, updated);
+    await this.notify(updated, orgId, actorId, `status changed to ${updated.status}`);
     return updated;
   }
 
@@ -247,10 +251,15 @@ export class TasksService {
     });
 
     await this.writeAudit(orgId, actorId, 'task.delete', id, existing, null);
+    await this.notify(existing, orgId, actorId, 'deleted');
     return { success: true };
   }
 
   // ─── Private Helpers ─────────────────────────────────────────────────────────
+
+  private async notify(task: { id: string; title: string; assignedToId: string | null; createdById: string }, orgId: string, actorId: string, action: string): Promise<void> {
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: [task.assignedToId, task.createdById].filter((id): id is string => Boolean(id)), resourceType: 'task', resourceId: task.id, title: `Task ${action}`, body: task.title, dedupeKey: `task:${task.id}:${action}:${Date.now()}` });
+  }
 
   private async assertTaskExists(id: string, orgId: string) {
     const task = await this.prisma.task.findFirst({

@@ -143,6 +143,9 @@ This document outlines the multi-volume master table of contents for the Decent 
 
 ## Volume V: Financial Operations & Billing Engine
 
+### Module 9: Notifications
+- Persistent tenant-scoped activity notifications, real-time delivery, reminders, and retention
+
 ### Chapter 19: Invoice Generation (Invoices)
 - 19.1 Automated Timesheet Aggregation & Hourly Billing Computations
 - 19.2 Retainer Contracts & Recurring Invoicing Cycles

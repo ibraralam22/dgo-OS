@@ -2,12 +2,13 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
-  ForbiddenException,
+  ForbiddenException, Optional,
 } from '@nestjs/common';
 import { PrismaService } from '../../shared/prisma/prisma.service';
 import { CreateTicketDto } from './dto/create-ticket.dto';
 import { UpdateTicketDto } from './dto/update-ticket.dto';
 import { CreateCommentDto } from './dto/create-comment.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 
 const TICKET_INCLUDE = {
   account: { select: { id: true, name: true, domain: true } },
@@ -23,7 +24,7 @@ const TICKET_INCLUDE = {
 
 @Injectable()
 export class TicketsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(private readonly prisma: PrismaService, @Optional() private readonly notifications?: NotificationsService) {}
 
   // ─── List Tickets ────────────────────────────────────────────────────────────
 
@@ -172,6 +173,7 @@ export class TicketsService {
     });
 
     await this.writeAudit(orgId, actorId, 'ticket.create', ticket.id, null, ticket);
+    await this.notify(ticket, orgId, actorId, 'created');
     return ticket;
   }
 
@@ -213,6 +215,7 @@ export class TicketsService {
     });
 
     await this.writeAudit(orgId, actorId, 'ticket.update', id, existing, updated);
+    await this.notify(updated, orgId, actorId, 'updated');
     return updated;
   }
 
@@ -228,7 +231,7 @@ export class TicketsService {
   ) {
     const ticket = await this.getTicketById(ticketId, orgId, userRole, userEmail);
 
-    return this.prisma.$transaction(async (tx) => {
+    const comment = await this.prisma.$transaction(async (tx) => {
       const comment = await tx.ticketComment.create({
         data: {
           organizationId: orgId,
@@ -257,6 +260,8 @@ export class TicketsService {
 
       return comment;
     });
+    await this.notify(ticket, orgId, actorId, 'has a new comment');
+    return comment;
   }
 
   // ─── Delete Ticket ───────────────────────────────────────────────────────────
@@ -274,10 +279,15 @@ export class TicketsService {
     });
 
     await this.writeAudit(orgId, actorId, 'ticket.delete', id, existing, null);
+    await this.notify(existing, orgId, actorId, 'deleted');
     return { success: true };
   }
 
   // ─── Private Helpers ─────────────────────────────────────────────────────────
+
+  private async notify(ticket: { id: string; subject: string; createdById: string; assignedToId: string | null }, orgId: string, actorId: string, action: string): Promise<void> {
+    await this.notifications?.createActivity({ organizationId: orgId, actorId, recipientIds: [ticket.createdById, ticket.assignedToId].filter((id): id is string => Boolean(id)), resourceType: 'ticket', resourceId: ticket.id, title: `Ticket ${action}`, body: ticket.subject, dedupeKey: `ticket:${ticket.id}:${action}:${Date.now()}` });
+  }
 
   private async getClientAccountId(email: string, orgId: string): Promise<string | null> {
     const contact = await this.prisma.contact.findFirst({
